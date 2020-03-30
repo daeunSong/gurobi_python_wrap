@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC   -shared  -o solveLP.so CMakeFiles/solveLP.dir/solveLP.cpp.o   -L/opt/gurobi811/linux64/lib  -Wl,-rpath,/opt/gurobi811/linux64/lib -lgurobi81 /usr/lib/x86_64-linux-gnu/libpython2.7.so /usr/lib/x86_64-linux-gnu/libboost_python.so /usr/lib/x86_64-linux-gnu/libpython2.7.so /usr/lib/x86_64-linux-gnu/libboost_python.so 
