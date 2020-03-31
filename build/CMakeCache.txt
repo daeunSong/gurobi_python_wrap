@@ -163,7 +163,7 @@ CMAKE_PROJECT_DESCRIPTION:STATIC=
 CMAKE_PROJECT_HOMEPAGE_URL:STATIC=
 
 //Value Computed by CMake
-CMAKE_PROJECT_NAME:STATIC=solveLP
+CMAKE_PROJECT_NAME:STATIC=qp
 
 //Path to a program.
 CMAKE_RANLIB:FILEPATH=/usr/bin/ranlib
@@ -248,8 +248,26 @@ PYTHON_LIBRARY:FILEPATH=/usr/lib/x86_64-linux-gnu/libpython2.7.so
 //Path to a library.
 PYTHON_LIBRARY_DEBUG:FILEPATH=PYTHON_LIBRARY_DEBUG-NOTFOUND
 
+//Value Computed by CMake
+qp_BINARY_DIR:STATIC=/home/daeunsong/devel/hpp/src/gurobi_python_wrap/build
+
 //Dependencies for the target
 qp_LIB_DEPENDS:STATIC=general;/opt/gurobi811/linux64/lib/libgurobi_c++.a;general;/opt/gurobi811/linux64/lib/libgurobi81.so;general;/usr/lib/x86_64-linux-gnu/libboost_python.so;general;/usr/lib/x86_64-linux-gnu/libpython2.7.so;general;/opt/gurobi811/linux64/lib/libgurobi_c++.a;general;/opt/gurobi811/linux64/lib/libgurobi81.so;general;/usr/lib/x86_64-linux-gnu/libboost_python.so;general;/usr/lib/x86_64-linux-gnu/libpython2.7.so;
+
+//Value Computed by CMake
+qp_SOURCE_DIR:STATIC=/home/daeunsong/devel/hpp/src/gurobi_python_wrap
+
+//Dependencies for the target
+qp_gurobi_LIB_DEPENDS:STATIC=general;/opt/gurobi811/linux64/lib/libgurobi_c++.a;general;/opt/gurobi811/linux64/lib/libgurobi81.so;general;/usr/lib/x86_64-linux-gnu/libboost_python.so;general;/usr/lib/x86_64-linux-gnu/libpython2.7.so;general;/opt/gurobi811/linux64/lib/libgurobi_c++.a;general;/opt/gurobi811/linux64/lib/libgurobi81.so;general;/usr/lib/x86_64-linux-gnu/libboost_python.so;general;/usr/lib/x86_64-linux-gnu/libpython2.7.so;
+
+//Value Computed by CMake
+qpg_BINARY_DIR:STATIC=/home/daeunsong/devel/hpp/src/gurobi_python_wrap/build
+
+//Dependencies for the target
+qpg_LIB_DEPENDS:STATIC=general;/opt/gurobi811/linux64/lib/libgurobi_c++.a;general;/opt/gurobi811/linux64/lib/libgurobi81.so;general;/usr/lib/x86_64-linux-gnu/libboost_python.so;general;/usr/lib/x86_64-linux-gnu/libpython2.7.so;general;/opt/gurobi811/linux64/lib/libgurobi_c++.a;general;/opt/gurobi811/linux64/lib/libgurobi81.so;general;/usr/lib/x86_64-linux-gnu/libboost_python.so;general;/usr/lib/x86_64-linux-gnu/libpython2.7.so;
+
+//Value Computed by CMake
+qpg_SOURCE_DIR:STATIC=/home/daeunsong/devel/hpp/src/gurobi_python_wrap
 
 //Value Computed by CMake
 solveLP_BINARY_DIR:STATIC=/home/daeunsong/devel/hpp/src/gurobi_python_wrap/build

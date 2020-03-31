@@ -53,7 +53,7 @@ CMAKE_BINARY_DIR = /home/daeunsong/devel/hpp/src/gurobi_python_wrap/build
 # Directory level rules for the build root directory
 
 # The main recursive "all" target.
-all: CMakeFiles/qp.dir/all
+all: CMakeFiles/qpg.dir/all
 
 .PHONY : all
 
@@ -63,36 +63,36 @@ preinstall:
 .PHONY : preinstall
 
 # The main recursive "clean" target.
-clean: CMakeFiles/qp.dir/clean
+clean: CMakeFiles/qpg.dir/clean
 
 .PHONY : clean
 
 #=============================================================================
-# Target rules for target CMakeFiles/qp.dir
+# Target rules for target CMakeFiles/qpg.dir
 
 # All Build rule for target.
-CMakeFiles/qp.dir/all:
-	$(MAKE) -f CMakeFiles/qp.dir/build.make CMakeFiles/qp.dir/depend
-	$(MAKE) -f CMakeFiles/qp.dir/build.make CMakeFiles/qp.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/daeunsong/devel/hpp/src/gurobi_python_wrap/build/CMakeFiles --progress-num=1,2 "Built target qp"
-.PHONY : CMakeFiles/qp.dir/all
+CMakeFiles/qpg.dir/all:
+	$(MAKE) -f CMakeFiles/qpg.dir/build.make CMakeFiles/qpg.dir/depend
+	$(MAKE) -f CMakeFiles/qpg.dir/build.make CMakeFiles/qpg.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/daeunsong/devel/hpp/src/gurobi_python_wrap/build/CMakeFiles --progress-num=1,2 "Built target qpg"
+.PHONY : CMakeFiles/qpg.dir/all
 
 # Build rule for subdir invocation for target.
-CMakeFiles/qp.dir/rule: cmake_check_build_system
+CMakeFiles/qpg.dir/rule: cmake_check_build_system
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/daeunsong/devel/hpp/src/gurobi_python_wrap/build/CMakeFiles 2
-	$(MAKE) -f CMakeFiles/Makefile2 CMakeFiles/qp.dir/all
+	$(MAKE) -f CMakeFiles/Makefile2 CMakeFiles/qpg.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/daeunsong/devel/hpp/src/gurobi_python_wrap/build/CMakeFiles 0
-.PHONY : CMakeFiles/qp.dir/rule
+.PHONY : CMakeFiles/qpg.dir/rule
 
 # Convenience name for target.
-qp: CMakeFiles/qp.dir/rule
+qpg: CMakeFiles/qpg.dir/rule
 
-.PHONY : qp
+.PHONY : qpg
 
 # clean rule for target.
-CMakeFiles/qp.dir/clean:
-	$(MAKE) -f CMakeFiles/qp.dir/build.make CMakeFiles/qp.dir/clean
-.PHONY : CMakeFiles/qp.dir/clean
+CMakeFiles/qpg.dir/clean:
+	$(MAKE) -f CMakeFiles/qpg.dir/build.make CMakeFiles/qpg.dir/clean
+.PHONY : CMakeFiles/qpg.dir/clean
 
 #=============================================================================
 # Special targets to cleanup operation of make.

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.3)
 
-project(solveLP C)
+project(qp C)
 
 option(CXX "enable C++ compilation" ON)
 if(CXX)
@@ -20,15 +20,15 @@ include_directories(${GUROBI_INCLUDE_DIRS})
 set(GUROBI_LIBRARIES "${GUROBI_CXX_LIBRARY};${GUROBI_LIBRARY}")
 
 # create the lib
-#add_executable(${CMAKE_PROJECT_NAME} qp.cpp)
-add_library(qp MODULE qp.cpp)
+#add_executable(qpg qp.cpp)
+add_library(qpg MODULE qpg.cpp)
 
 
 #~ target_link_libraries(solveLP ${PYTHON_LIBRARIES})
-target_link_libraries(qp ${GUROBI_LIBRARIES} ${Boost_LIBRARIES} ${PYTHON_LIBRARIES})
-target_include_directories(qp PRIVATE ${PYTHON_INCLUDE_DIRS})
+target_link_libraries(qpg ${GUROBI_LIBRARIES} ${Boost_LIBRARIES} ${PYTHON_LIBRARIES})
+target_include_directories(qpg PRIVATE ${PYTHON_INCLUDE_DIRS})
 
-target_link_libraries(qp ${GUROBI_LIBRARIES} ${Boost_LIBRARIES} ${PYTHON_LIBRARIES})
-target_include_directories(qp PRIVATE ${PYTHON_INCLUDE_DIRS})
+target_link_libraries(qpg ${GUROBI_LIBRARIES} ${Boost_LIBRARIES} ${PYTHON_LIBRARIES})
+target_include_directories(qpg PRIVATE ${PYTHON_INCLUDE_DIRS})
 
 

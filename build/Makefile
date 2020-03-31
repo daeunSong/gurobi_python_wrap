@@ -111,44 +111,44 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named qp
+# Target rules for targets named qpg
 
 # Build rule for target.
-qp: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 qp
-.PHONY : qp
+qpg: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 qpg
+.PHONY : qpg
 
 # fast build rule for target.
-qp/fast:
-	$(MAKE) -f CMakeFiles/qp.dir/build.make CMakeFiles/qp.dir/build
-.PHONY : qp/fast
+qpg/fast:
+	$(MAKE) -f CMakeFiles/qpg.dir/build.make CMakeFiles/qpg.dir/build
+.PHONY : qpg/fast
 
-qp.o: qp.cpp.o
+qpg.o: qpg.cpp.o
 
-.PHONY : qp.o
+.PHONY : qpg.o
 
 # target to build an object file
-qp.cpp.o:
-	$(MAKE) -f CMakeFiles/qp.dir/build.make CMakeFiles/qp.dir/qp.cpp.o
-.PHONY : qp.cpp.o
+qpg.cpp.o:
+	$(MAKE) -f CMakeFiles/qpg.dir/build.make CMakeFiles/qpg.dir/qpg.cpp.o
+.PHONY : qpg.cpp.o
 
-qp.i: qp.cpp.i
+qpg.i: qpg.cpp.i
 
-.PHONY : qp.i
+.PHONY : qpg.i
 
 # target to preprocess a source file
-qp.cpp.i:
-	$(MAKE) -f CMakeFiles/qp.dir/build.make CMakeFiles/qp.dir/qp.cpp.i
-.PHONY : qp.cpp.i
+qpg.cpp.i:
+	$(MAKE) -f CMakeFiles/qpg.dir/build.make CMakeFiles/qpg.dir/qpg.cpp.i
+.PHONY : qpg.cpp.i
 
-qp.s: qp.cpp.s
+qpg.s: qpg.cpp.s
 
-.PHONY : qp.s
+.PHONY : qpg.s
 
 # target to generate assembly for a file
-qp.cpp.s:
-	$(MAKE) -f CMakeFiles/qp.dir/build.make CMakeFiles/qp.dir/qp.cpp.s
-.PHONY : qp.cpp.s
+qpg.cpp.s:
+	$(MAKE) -f CMakeFiles/qpg.dir/build.make CMakeFiles/qpg.dir/qpg.cpp.s
+.PHONY : qpg.cpp.s
 
 # Help Target
 help:
@@ -158,10 +158,10 @@ help:
 	@echo "... depend"
 	@echo "... rebuild_cache"
 	@echo "... edit_cache"
-	@echo "... qp"
-	@echo "... qp.o"
-	@echo "... qp.i"
-	@echo "... qp.s"
+	@echo "... qpg"
+	@echo "... qpg.o"
+	@echo "... qpg.i"
+	@echo "... qpg.s"
 .PHONY : help
 
 

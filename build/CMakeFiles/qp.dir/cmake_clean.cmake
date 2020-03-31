@@ -1,7 +1,7 @@
 file(REMOVE_RECURSE
-  "CMakeFiles/qp.dir/qp.cpp.o"
+  "CMakeFiles/qp.dir/qpg.cpp.o"
+  "qp"
   "qp.pdb"
-  "qp.so"
 )
 
 # Per-language clean rules from dependency scanning.
