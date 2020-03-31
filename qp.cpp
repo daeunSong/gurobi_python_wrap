@@ -1,5 +1,6 @@
 #include "gurobi_c++.h"
 #include <boost/numeric/ublas/matrix.hpp> 
+#include <boost/python.hpp>
 
 using namespace std;
 using namespace boost::numeric::ublas;
@@ -106,9 +107,9 @@ void solveLP (const matrix<double> &c, const matrix<double> &A, const matrix<dou
         cout << "Error code = " << e.getErrorCode() << endl;
         //cout << e.getMessage() << endl;
     }
-    
 }
-
+  
+  
 void solveMIP (const matrix<double> &c, const matrix<double> &A, const matrix<double> &b, 
               const matrix<double> &E, const matrix<double> &e)
 {   
@@ -263,6 +264,16 @@ void solveMIP (const matrix<double> &c, const matrix<double> &A, const matrix<do
         //cout << e.getMessage() << endl;
     }
     
+}
+
+
+BOOST_PYTHON_MODULE(qp) {
+    // An established convention for using boost.python.
+    using namespace boost::python;
+
+    // Expose the function hello().
+    def("solveLP", solveLP);
+    def("solveMIP", solveMIP);
 }
 
  

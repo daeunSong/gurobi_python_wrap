@@ -1,4 +1,4 @@
-# Install script for directory: /home/daeunsong/test
+# Install script for directory: /home/daeunsong/devel/hpp/src/gurobi_python_wrap
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -45,5 +45,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/home/daeunsong/test/build/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/home/daeunsong/devel/hpp/src/gurobi_python_wrap/build/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

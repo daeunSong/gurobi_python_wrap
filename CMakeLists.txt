@@ -17,20 +17,18 @@ set(CMAKE_SHARED_MODULE_PREFIX "")
 
 include_directories(${GUROBI_INCLUDE_DIRS})
 
-set(GUROBI_LIBRARIES "${GUROBI_CXX_LIBRARY};${GUROBI_LIBRARY}" )
+set(GUROBI_LIBRARIES "${GUROBI_CXX_LIBRARY};${GUROBI_LIBRARY}")
 
 # create the lib
 #add_executable(${CMAKE_PROJECT_NAME} qp.cpp)
-add_library(solveLP MODULE solveLP.cpp)
-add_library(solveMIP MODULE solveMIP.cpp)
+add_library(qp MODULE qp.cpp)
 
 
 #~ target_link_libraries(solveLP ${PYTHON_LIBRARIES})
-target_link_libraries(solveLP ${GUROBI_LIBRARIES}   ${Boost_LIBRARIES} ${PYTHON_LIBRARIES})
-target_include_directories(solveLP PRIVATE ${PYTHON_INCLUDE_DIRS})
+target_link_libraries(qp ${GUROBI_LIBRARIES} ${Boost_LIBRARIES} ${PYTHON_LIBRARIES})
+target_include_directories(qp PRIVATE ${PYTHON_INCLUDE_DIRS})
 
-target_link_libraries(solveMIP ${GUROBI_LIBRARY} ${PYTHON_LIBRARIES})
-target_link_libraries(solveMIP ${Boost_LIBRARIES} ${PYTHON_LIBRARIES})
-target_include_directories(solveMIP PRIVATE ${PYTHON_INCLUDE_DIRS})
+target_link_libraries(qp ${GUROBI_LIBRARIES} ${Boost_LIBRARIES} ${PYTHON_LIBRARIES})
+target_include_directories(qp PRIVATE ${PYTHON_INCLUDE_DIRS})
 
 

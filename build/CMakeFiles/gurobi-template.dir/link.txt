@@ -1,1 +1,0 @@
-/usr/bin/c++  -O3 -DNDEBUG  -rdynamic CMakeFiles/gurobi-template.dir/qp.cpp.o  -o gurobi-template   -L/opt/gurobi811/linux64/lib  -Wl,-rpath,/opt/gurobi811/linux64/lib /opt/gurobi811/linux64/lib/libgurobi_c++.a -lgurobi81 

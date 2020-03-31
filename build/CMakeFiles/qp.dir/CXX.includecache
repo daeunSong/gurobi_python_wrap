@@ -1,0 +1,30 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/daeunsong/devel/hpp/src/gurobi_python_wrap/qp.cpp
+gurobi_c++.h
+/home/daeunsong/devel/hpp/src/gurobi_python_wrap/gurobi_c++.h
+boost/numeric/ublas/matrix.hpp
+-
+boost/python.hpp
+-
+
+/opt/gurobi811/linux64/include/gurobi_c++.h
+iostream
+-
+vector
+-
+string
+-
+gurobi_c.h
+/opt/gurobi811/linux64/include/gurobi_c.h
+
+/opt/gurobi811/linux64/include/gurobi_c.h
+stdio.h
+-
+
