@@ -443,8 +443,7 @@ list solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_)
         int varIndices[MAX];
         double previousL = 0.0;
         int k = 0;
-        expr = 0;
-        cout << numSlackVar << endl;  
+        expr = 0; 
         for (int i = 0; i < numSlackVar; i++ ){
             if (i != 0 && slackIndices[i] - previousL > 2){
                 expr = 0;
