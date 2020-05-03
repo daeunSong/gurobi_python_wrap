@@ -1,9 +1,10 @@
-#include "gurobi_c++.h"
 #include <boost/python.hpp>
 #include <boost/python/list.hpp>
 #include <boost/python/extract.hpp>
+#include "gurobi_c++.h"
 #include <glpk.h>
-//#include <algorithm>
+#include <vector>
+#include <algorithm>
 //#include <Eigen/Dense>
 
 using namespace std;
@@ -22,56 +23,39 @@ int nonZeroCnt(double* A, int len){
     return cnt;
 }
 
-//int getType(const VectorXd& mib, const VectorXd& mab, const int i) {
-  //const double& mibV = mib(i);
-  //const double& mabV = mab(i);
-  //int type = GLP_FR;
-  //if (mibV > UNBOUNDED_DOWN && mabV < UNBOUNDED_UP)
-    //type = GLP_DB;
-  //else if (mibV > UNBOUNDED_DOWN)
-    //type = GLP_LO;
-  //else if (mabV < UNBOUNDED_UP)
-    //type = GLP_UP;
-  //return type;
-//}
+void massadd (list& l, vector<double>& v){
+    for (int i = 0; i < len(l); i++)
+        v.push_back(extract<double>(l[i]));
+}
 
+void massadd2 (list& l, vector< vector<double> >& v){
+    for (int i = 0; i < len(l); i++){
+        vector<double> tmp;
+        for (int j = 0; j < len(l[0]); j++)
+            tmp.push_back(extract<double>(l[i][j]));
+        v.push_back(tmp);
+    }
+}
 
 /*int solveglpk(const VectorXd& g0, const MatrixXd& CE, const VectorXd& ce0, const MatrixXd& CI, const VectorXd& ci0,
               solvers::Cref_vectorX minBounds, solvers::Cref_vectorX maxBounds, VectorXd& x, double& cost) {*/
-list solveglpk(list& c_, list& A_, list& b_, list& E_, list& e_){
-
-    double g0[len(c_)] = {};
-    double CI[len(A_)][len(A_[0])] = {};
-    double ci0[len(b_)] = {};
-    double CE[len(E_)][len(E_[0])] = {};
-    double ce0[len(e_)] = {};
+list solveglpk (list& c_, list& A_, list& b_, list& E_, list& e_)
+{
+    // python::list to std::vector 
+    vector<double> g0;
+    massadd(c_, g0);
     
-    int leng = len(c_);
-    int lenI1 = len(A_);
-    int lenI2 = len(A_[0]);
-    int leni = len(b_);
-    int lenE1 = len(E_);
-    int lenE2 = len(E_[0]);
-    int lene = len(e_);
+    vector< vector<double> > CI;
+    massadd2(A_, CI);
     
-    for (int i = 0; i < leng; i++)
-        g0[i] = extract<double>(c_[i]);
+    vector<double> ci0;
+    massadd(b_, ci0);
     
-    for (int i = 0; i < lenI1; i++){
-        for (int j = 0; j < lenI2; j++)
-            CI[i][j] = extract<double>(A_[i][j]);
-    }
-        
-    for (int i = 0; i < leni; i++)
-        ci0[i] = extract<double>(b_[i]);
-
-    for (int i = 0; i < lenE1; i++){
-        for (int j = 0; j < lenE2; j++)
-            CE[i][j] = extract<double>(E_[i][j]);
-    }
-        
-    for (int i = 0; i < lene; i++)
-        ce0[i] = extract<double>(e_[i]);   
+    vector< vector<double> > CE;
+    massadd2(E_, CE);
+    
+    vector<double> ce0;
+    massadd(e_, ce0);
     
     const clock_t begin_time = clock();
     
@@ -90,16 +74,16 @@ list solveglpk(list& c_, list& A_, list& b_, list& E_, list& e_){
                                     // where GLP_MAX means maximization
 
     // ROWS
-    const int numEqConstraints = lenE1;
-    const int numIneqConstraints = lenI1;
+    const int numEqConstraints = CE.size();
+    const int numIneqConstraints = CI.size();
     const int num_constraints_total = numEqConstraints + numIneqConstraints;
     glp_add_rows(lp, num_constraints_total);
     int idrow = 1;  // adds three rows to the problem object
     int idcol = 1;
     int idConsMat = 1;
     int xsize = 0;
-    if (lenE1 != 0) xsize = lenE2;
-    if (lenI1 != 0) xsize = lenI2;
+    if (CE.size() != 0) xsize = CE[0].size();
+    if (CI.size() != 0) xsize = CI[0].size();
     //int xsize = (int)(x.size());
     
     for (int i = 0; i < numIneqConstraints; ++i, ++idrow) {
@@ -156,39 +140,23 @@ list solveglpk(list& c_, list& A_, list& b_, list& E_, list& e_){
 
 
 list solveLP (list& c_, list& A_, list& b_, list& E_, list& e_)
-{ 
-    double c[len(c_)];
-    double A[len(A_)][len(A_[0])];
-    double b[len(b_)];
-    double E[len(E_)][len(E_[0])];
-    double e[len(e_)];
+{
+    // python::list to std::vector 
+    vector<double> c;
+    massadd(c_, c);
     
-    int lenc = len(c_);
-    int lenA1 = len(A_);
-    int lenA2 = len(A_[0]);
-    int lenb = len(b_);
-    int lenE1 = len(E_);
-    int lenE2 = len(E_[0]);
-    int lene = len(e_);
+    vector< vector<double> > A;
+    massadd2(A_, A);
     
-    for (int i = 0; i < lenc; i++)
-        c[i] = extract<double>(c_[i]);
+    vector<double> b;
+    massadd(b_, b);
     
-    for (int i = 0; i < lenA1; i++){
-        for (int j = 0; j < lenA2; j++)
-            A[i][j] = extract<double>(A_[i][j]);
-    }
-        
-    for (int i = 0; i < lenb; i++)
-        b[i] = extract<double>(b_[i]);
-
-    for (int i = 0; i < lenE1; i++){
-        for (int j = 0; j < lenE2; j++)
-            E[i][j] = extract<double>(E_[i][j]);
-    }
-        
-    for (int i = 0; i < lene; i++)
-        e[i] = extract<double>(e_[i]);
+    vector< vector<double> > E;
+    massadd2(E_, E);
+    
+    vector<double> e;
+    massadd(e_, e);
+    
     
     try {
         const clock_t begin_time = clock();
@@ -196,10 +164,10 @@ list solveLP (list& c_, list& A_, list& b_, list& E_, list& e_)
         GRBModel model = GRBModel(env);
         model.getEnv().set(GRB_IntParam_OutputFlag, 0);
         
-        GRBVar cVars[lenc];
+        GRBVar cVars[c.size()];
         
         //add continuous variables
-        for (int i = 0 ; i < lenc; i++){
+        for (int i = 0 ; i < c.size(); i++){
             cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, c[i], GRB_CONTINUOUS);
         }
         model.update();
@@ -208,63 +176,59 @@ list solveLP (list& c_, list& A_, list& b_, list& E_, list& e_)
         x = model.getVars();        
         
         //// equality constraints
-        if (lenE1 > 0){
-            for (int i = 0; i < lenE1; i ++){
+        if (E.size() > 0){
+            for (int i = 0; i < E.size(); i ++){
                 //idx = [j for j, el in enumerate(E[i].tolist()) if el != 0.]
-                int lenIdx = nonZeroCnt(E[i], lenE2);
-                int idx[lenIdx]; int k = 0;
-                for (int j = 0; j < lenE2; j++){
-                    if (E[i][j] != 0.0){
-                        idx[k] = j;
-                        k++;
-                    }
+                vector<int> idx;
+                for (int j = 0; j < E[i].size(); j++){
+                    if (E[i][j] != 0.0)
+                        idx.push_back(j);
                 }
                 
                 //variables = x[idx]
                 //coeff = E[i,idx]
-                GRBVar variables[lenIdx];
-                double coeff[lenIdx];
-                for (int j = 0; j < lenIdx; j++){
+                GRBVar variables[idx.size()];
+                double coeff[idx.size()];
+                for (int j = 0; j < idx.size(); j++){
                     variables[j] = x[idx[j]];
                     coeff[j] = E[i][idx[j]];
                 }
                 //expr = grb.LinExpr(coeff, variables)
                 GRBLinExpr expr = 0;
-                expr.addTerms(coeff, variables, lenIdx);
+                expr.addTerms(coeff, variables, idx.size());
                 //model.addConstr(expr, grb.GRB.EQUAL, e[i])
                 model.addConstr(expr == e[i]);
                 //cout << expr << endl;
+                idx.clear();
             }
         }
         model.update();
         
         //// inequality constraints
-        if (lenA1 > 0){
-            for (int i = 0; i < lenA1; i ++){
+        if (A.size() > 0){
+            for (int i = 0; i < A.size(); i ++){
                 //idx = [j for j, el in enumerate(A[i].tolist()) if el != 0.]
-                int lenIdx = nonZeroCnt(A[i], lenA2);
-                int idx[lenIdx]; int k = 0;
-                for (int j = 0; j < lenA2; j++){
-                    if (A[i][j] != 0.0){
-                        idx[k] = j;
-                        k++;
-                    }
+                vector<int> idx;
+                for (int j = 0; j < A[i].size(); j++){
+                    if (A[i][j] != 0.0)
+                        idx.push_back(j);
                 }
                         
                 //variables = x[idx]
                 //coeff = a[i,idx]
-                GRBVar variables[lenIdx];
-                double coeff[lenIdx];
-                for (int j = 0; j < lenIdx; j++){
+                GRBVar variables[idx.size()];
+                double coeff[idx.size()];
+                for (int j = 0; j < idx.size(); j++){
                     variables[j] = x[idx[j]];
                     coeff[j] = A[i][idx[j]];
                 }
                 //expr = grb.LinExpr(coeff, variables)
                 GRBLinExpr expr = 0;
-                expr.addTerms(coeff, variables, lenIdx);
+                expr.addTerms(coeff, variables, idx.size());
                 //model.addConstr(expr, grb.GRB.LESS_EQUAL, b[i])
                 model.addConstr(expr <= b[i]);
                 //cout << expr << endl;
+                idx.clear();
             }
             
         }
@@ -279,7 +243,7 @@ list solveLP (list& c_, list& A_, list& b_, list& E_, list& e_)
         
         list result;
         result.append(time);
-        for (int i = 0; i < lenc; i++){
+        for (int i = 0; i < c.size(); i++){
             result.append(cVars[i].get(GRB_DoubleAttr_X));
             //cout << extract<double>(result[i]) << endl;
         }
@@ -298,129 +262,113 @@ list solveLP (list& c_, list& A_, list& b_, list& E_, list& e_)
   
 list solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_)
 {
-    double c[len(c_)];
-    double A[len(A_)][len(A_[0])];
-    double b[len(b_)];
-    double E[len(E_)][len(E_[0])];
-    double e[len(e_)];
-
-    int lenc = len(c_);
-    int lenA1 = len(A_);
-    int lenA2 = len(A_[0]);
-    int lenb = len(b_);
-    int lenE1 = len(E_);
-    int lenE2 = len(E_[0]);
-    int lene = len(e_);
+    // python::list to std::vector 
+    vector<double> c;
+    massadd(c_, c);
     
-    for (int i = 0; i < lenc; i++)
-        c[i] = extract<double>(c_[i]);
+    vector< vector<double> > A;
+    massadd2(A_, A);
     
-    for (int i = 0; i < lenA1; i++){
-        for (int j = 0; j < lenA2; j++)
-            A[i][j] = extract<double>(A_[i][j]);
-    }
-        
-    for (int i = 0; i < lenb; i++)
-        b[i] = extract<double>(b_[i]);
-
-    for (int i = 0; i < lenE1; i++){
-        for (int j = 0; j < lenE2; j++)
-            E[i][j] = extract<double>(E_[i][j]);
-    }
-        
-    for (int i = 0; i < lene; i++)
-        e[i] = extract<double>(e_[i]);
-        
+    vector<double> b;
+    massadd(b_, b);
+    
+    vector< vector<double> > E;
+    massadd2(E_, E);
+    
+    vector<double> e;
+    massadd(e_, e);
+    
+    
     try {
         const clock_t begin_time = clock();
         GRBEnv env = GRBEnv();
         GRBModel model = GRBModel(env);
         model.getEnv().set(GRB_IntParam_OutputFlag, 0);
         
-        GRBVar cVars[lenc];
-               
+        GRBVar cVars[c.size()];
+        
         //add continuous variables
-        for (int i = 0 ; i < lenc; i++){
+        for (int i = 0 ; i < c.size(); i++){
             cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, c[i], GRB_CONTINUOUS);
         }
         model.update();
         
         GRBVar* x = 0;
-        x = model.getVars();        
+        x = model.getVars();  
+        int numX = model.get(GRB_IntAttr_NumVars);        
         
         //// equality constraints
-        if (lenE1 > 0){
-            for (int i = 0; i < lenE1; i ++){
+        if (E.size() > 0){
+            for (int i = 0; i < E.size(); i ++){
                 //idx = [j for j, el in enumerate(E[i].tolist()) if el != 0.]
-                int lenIdx = nonZeroCnt(E[i], lenE2);
-                int idx[lenIdx]; int k = 0;
-                for (int j = 0; j < lenE2; j++){
-                    if (E[i][j] != 0.0){
-                        idx[k] = j;
-                        k++;
-                    }
+                vector<int> idx;
+                for (int j = 0; j < E[i].size(); j++){
+                    if (E[i][j] != 0.0)
+                        idx.push_back(j);
                 }
                 
                 //variables = x[idx]
                 //coeff = E[i,idx]
-                GRBVar variables[lenIdx];
-                double coeff[lenIdx];
-                for (int j = 0; j < lenIdx; j++){
+                GRBVar variables[idx.size()];
+                double coeff[idx.size()];
+                for (int j = 0; j < idx.size(); j++){
                     variables[j] = x[idx[j]];
                     coeff[j] = E[i][idx[j]];
                 }
                 //expr = grb.LinExpr(coeff, variables)
                 GRBLinExpr expr = 0;
-                expr.addTerms(coeff, variables, lenIdx);
+                expr.addTerms(coeff, variables, idx.size());
                 //model.addConstr(expr, grb.GRB.EQUAL, e[i])
                 model.addConstr(expr == e[i]);
                 //cout << expr << endl;
+                idx.clear();
             }
         }
         model.update();
         
         //// inequality constraints
-        if (lenA1 > 0){
-            for (int i = 0; i < lenA1; i ++){
+        if (A.size() > 0){
+            for (int i = 0; i < A.size(); i ++){
                 //idx = [j for j, el in enumerate(A[i].tolist()) if el != 0.]
-                int lenIdx = nonZeroCnt(A[i], lenA2);
-                int idx[lenIdx]; int k = 0;
-                for (int j = 0; j < lenA2; j++){
-                    if (A[i][j] != 0.0){
-                        idx[k] = j;
-                        k++;
-                    }
+                vector<int> idx;
+                for (int j = 0; j < A[i].size(); j++){
+                    if (A[i][j] != 0.0)
+                        idx.push_back(j);
                 }
                         
                 //variables = x[idx]
                 //coeff = a[i,idx]
-                GRBVar variables[lenIdx];
-                double coeff[lenIdx] ;
-                for (int j = 0; j < lenIdx; j++){
+                GRBVar variables[idx.size()];
+                double coeff[idx.size()];
+                for (int j = 0; j < idx.size(); j++){
                     variables[j] = x[idx[j]];
                     coeff[j] = A[i][idx[j]];
                 }
                 //expr = grb.LinExpr(coeff, variables)
                 GRBLinExpr expr = 0;
-                expr.addTerms(coeff, variables, lenIdx);
+                expr.addTerms(coeff, variables, idx.size());
                 //model.addConstr(expr, grb.GRB.LESS_EQUAL, b[i])
                 model.addConstr(expr <= b[i]);
                 //cout << expr << endl;
+                idx.clear();
             }
             
         }
         model.update();
         
-        int slackIndices[lenc];
+        vector<int> slackIndices;
         int numSlackVar = 0;
-        for (int i = 0; i < lenc; i++){
+        for (int i = 0; i < c.size(); i++){
             if (c[i] > 0){
-                slackIndices[numSlackVar] = i;
+                slackIndices.push_back(i);
                 numSlackVar++;
             }
         }
-        
-        int numX = model.get(GRB_IntAttr_NumVars);
+        //GRBLinExpr expr = 0;
+        //for (int i= 0; i <lenc; i++){
+            //expr += c[i] * x[i];
+        //}
+        //model.setObjective(expr,GRB_MINIMIZE);
         
         // add boolean variables
         GRBVar bVars[numSlackVar];
@@ -431,58 +379,79 @@ list solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_)
         GRBVar* y = 0;
         y = model.getVars();
 
-        // inequality
-        GRBLinExpr expr = 0;
+        // inequality        
         for (int i = 0; i < numSlackVar; i++ ){
+            GRBLinExpr expr = 0;
             expr += 1.0 * x[slackIndices[i]];
-            expr += -100.0 * y[i+numX];
-            model.addConstr(expr <= 0);
+            expr -= 100.0 * y[i+numX]; //+numX
+            model.addConstr(expr <= 0, "ineq2");
         }
+        model.update();   
 
         // equality
-        int varIndices[MAX];
-        double previousL = 0.0;
-        int k = 0;
-        expr = 0; 
+        /////
+        //GRBVar variables[lenIdx];
+        //double coeff[lenIdx] ;
+        //for (int j = 0; j < lenIdx; j++){
+            //variables[j] = x[idx[j]];
+            //coeff[j] = A[i][idx[j]];
+        //}
+        //expr.addTerms(coeff, variables, lenIdx);
+        /////////
+        vector<GRBVar> variables;
+        int previousL = 0;
         for (int i = 0; i < numSlackVar; i++ ){
             if (i != 0 && slackIndices[i] - previousL > 2){
-                expr = 0;
-                for (int j = 0 ; j < k ; j ++)
-                    expr += y[varIndices[k]];
-                model.addConstr(expr == k-1);
+                GRBLinExpr expr = 0;
+                //expr = grb.LinExpr(ones(len(variables)), variables)
+                //model.addConstr(expr, grb.GRB.EQUAL, len(variables) -1)
+                for (int j = 0 ; j < variables.size() ; j ++)
+                    expr += variables[j];
+                model.addConstr(expr == variables.size()-1, "eq2");
                 //delete varIndices; int varIndices[MAX]; k =0;
-                varIndices[MAX]={}; k =0;
-                varIndices[k] = i+numX; k++;
+                variables.clear();
+                variables.push_back(y[i+numX]);
             }
             else if (slackIndices[i] != 0){
-                varIndices[k] = i+numX;   
-                k++;
+                variables.push_back(y[i+numX]);
             }
             previousL = slackIndices[i];
         }
-      
-        if (k > 1){
-            expr = 0;
-            for (int i = 0; i < k; i++){
-                expr += y[varIndices[i]];
-            }
-            model.addConstr(expr == k-1);
+              
+        if (variables.size() > 1){
+            GRBLinExpr expr = 0;
+            for (int i = 0; i < variables.size(); i++)
+                expr += variables[i];
+            model.addConstr(expr == variables.size()-1, "last");
         }
         model.update();    
         
-        expr = 0;
+        GRBLinExpr expr = 0;
         for (int i = 0; i <numSlackVar; i++)
-            expr += y[i+numX];
+            expr += y[i+numX]; //+numX
         
         model.setObjective(expr,GRB_MINIMIZE);
         model.optimize();
         
+        //if (model.get(GRB_IntAttr_Status )==GRB_INFEASIBLE){
+            //GRBConstr* con = 0;
+            //cout  << "The  model is  infeasible; computing  IIS" << endl;
+            //model.computeIIS ();
+            //cout  << "\nThe  following  constraint(s) "<< "cannot  be  satisfied:" << endl;
+            //con = model.getConstrs ();
+            //for(int i = 0; i < model.get(GRB_IntAttr_NumConstrs ); ++i){
+                //if(con[i].get(GRB_IntAttr_IISConstr) == 1){
+                    //cout  << con[i].get(GRB_StringAttr_ConstrName) << endl;
+                //}
+            //}
+        //}
+
         const clock_t end_time = clock();
         double time = double(end_time - begin_time)/CLOCKS_PER_SEC*1000;
         
         list result;
         result.append(time);
-        for (int i = 0; i < lenc; i++){
+        for (int i = 0; i < c.size(); i++){
             result.append(cVars[i].get(GRB_DoubleAttr_X));
             //cout << extract<double>(result[i]) << endl;
         }
@@ -491,9 +460,9 @@ list solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_)
     
     } catch(GRBException e){
         cout << "Error code = " << e.getErrorCode() << endl;
-        //cout << e.getMessage() << endl;
+        cout << e.getMessage() << endl;
     } catch (error_already_set) {
-        PyErr_Print();
+        //PyErr_Print();
     }
     
     
@@ -551,6 +520,7 @@ main(int   argc,
     for (int i = 0; i < 1; i++){
         d.append(MATRIX_d[i]);
     }
+    
     
     cout << "solveLP" << endl;
     result = solveLP(b, A, b, C, d);

@@ -248,6 +248,12 @@ PYTHON_LIBRARY:FILEPATH=/usr/lib/x86_64-linux-gnu/libpython2.7.so
 //Path to a library.
 PYTHON_LIBRARY_DEBUG:FILEPATH=PYTHON_LIBRARY_DEBUG-NOTFOUND
 
+//Path to a file.
+glpk_INCLUDE_DIR:PATH=/usr/include
+
+//Path to a library.
+glpk_LIBRARY:FILEPATH=/usr/lib/x86_64-linux-gnu/libglpk.so
+
 //Value Computed by CMake
 qp_BINARY_DIR:STATIC=/home/daeunsong/devel/hpp/src/gurobi_python_wrap/build
 
@@ -255,7 +261,7 @@ qp_BINARY_DIR:STATIC=/home/daeunsong/devel/hpp/src/gurobi_python_wrap/build
 qp_SOURCE_DIR:STATIC=/home/daeunsong/devel/hpp/src/gurobi_python_wrap
 
 //Dependencies for the target
-qpg_LIB_DEPENDS:STATIC=general;/opt/gurobi811/linux64/lib/libgurobi_c++.a;general;/opt/gurobi811/linux64/lib/libgurobi81.so;general;/usr/lib/x86_64-linux-gnu/libboost_python.so;general;/usr/lib/x86_64-linux-gnu/libpython2.7.so;general;/opt/gurobi811/linux64/lib/libgurobi_c++.a;general;/opt/gurobi811/linux64/lib/libgurobi81.so;general;/usr/lib/x86_64-linux-gnu/libboost_python.so;general;/usr/lib/x86_64-linux-gnu/libpython2.7.so;
+qpg_LIB_DEPENDS:STATIC=general;/usr/lib/x86_64-linux-gnu/libpython2.7.so;general;/opt/gurobi811/linux64/lib/libgurobi_c++.a;general;/opt/gurobi811/linux64/lib/libgurobi81.so;general;/usr/lib/x86_64-linux-gnu/libboost_python.so;general;/usr/lib/x86_64-linux-gnu/libglpk.so;
 
 
 ########################
@@ -423,6 +429,8 @@ FIND_PACKAGE_MESSAGE_DETAILS_Boost:INTERNAL=[/usr/include][cfound components: py
 FIND_PACKAGE_MESSAGE_DETAILS_GUROBI:INTERNAL=[/opt/gurobi811/linux64/lib/libgurobi81.so][/opt/gurobi811/linux64/lib/libgurobi_c++.a][/opt/gurobi811/linux64/include][v()]
 //Details about finding PythonLibs
 FIND_PACKAGE_MESSAGE_DETAILS_PythonLibs:INTERNAL=[/usr/lib/x86_64-linux-gnu/libpython2.7.so][/usr/include/python2.7][v2.7.12(2.7)]
+//Details about finding glpk
+FIND_PACKAGE_MESSAGE_DETAILS_glpk:INTERNAL=[/usr/lib/x86_64-linux-gnu/libglpk.so][/usr/include][v()]
 //ADVANCED property for variable: GUROBI_CXX_LIBRARY
 GUROBI_CXX_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: GUROBI_INCLUDE_DIR
@@ -447,4 +455,8 @@ _Boost_LIBRARY_DIR_RELEASE_LAST:INTERNAL=/usr/lib/x86_64-linux-gnu
 _Boost_NAMESPACE_LAST:INTERNAL=boost
 //Last used Boost_USE_MULTITHREADED value.
 _Boost_USE_MULTITHREADED_LAST:INTERNAL=TRUE
+//ADVANCED property for variable: glpk_INCLUDE_DIR
+glpk_INCLUDE_DIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: glpk_LIBRARY
+glpk_LIBRARY-ADVANCED:INTERNAL=1
 
