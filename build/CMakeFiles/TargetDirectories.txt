@@ -1,3 +1,0 @@
-/home/daeunsong/devel/hpp/src/gurobi_python_wrap/build/CMakeFiles/rebuild_cache.dir
-/home/daeunsong/devel/hpp/src/gurobi_python_wrap/build/CMakeFiles/edit_cache.dir
-/home/daeunsong/devel/hpp/src/gurobi_python_wrap/build/CMakeFiles/qpg.dir
