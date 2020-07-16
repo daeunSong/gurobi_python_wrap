@@ -8,7 +8,7 @@
 A free academic license can be obtained at https://www.gurobi.com.
 
 ## Setup
-Compile and copy and paste .so file to your directory.
+Compile and copy and paste the .so file into your directory.
 ```sh
 mkdir build && cd build
 cmake ..
