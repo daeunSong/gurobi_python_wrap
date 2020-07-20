@@ -495,7 +495,6 @@ resultData solveLP_iter (list& c_, list& A_, list& b_, list& E_, list& e_)
 
         model->setObjective(expr,GRB_MINIMIZE);
         model->optimize();
-        model->write("model.mps");
         
         const clock_t end_time = clock();
         double time = double(end_time - begin_time)/CLOCKS_PER_SEC*1000;
@@ -505,6 +504,7 @@ resultData solveLP_iter (list& c_, list& A_, list& b_, list& E_, list& e_)
         result.time= time;
         if (model->get(GRB_IntAttr_Status) == 2)
         {
+            model->write("model.mps");
             result.success = true;
             for (int i = 0; i < c.size(); i++)
                 r.append(cVars[i].get(GRB_DoubleAttr_X));
@@ -903,14 +903,13 @@ resultData solveLP_cost_iter (list& c_, list& A_, list& b_, list& E_, list& e_, 
         model->optimize();
         const clock_t end_time = clock();
         
-        model->write("model.mps");
-        
         double time = double(end_time - begin_time)/CLOCKS_PER_SEC*1000;
         
         list r;
         result.time= time;
         if (model->get(GRB_IntAttr_Status) == 2)
         {
+            model->write("model.mps");
             result.success = true;
             for (int i = 0; i < c.size(); i++)
                 r.append(cVars[i].get(GRB_DoubleAttr_X));
