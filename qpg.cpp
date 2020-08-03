@@ -1,4 +1,4 @@
-#include <boost/python.hpp>
+ #include <boost/python.hpp>
 #include <boost/python/list.hpp>
 #include <boost/python/extract.hpp>
 #include "gurobi_c++.h"
@@ -194,7 +194,7 @@ resultData solveLP (list& c_, list& A_, list& b_, list& E_, list& e_)
         
         //add continuous variables
         for (int i = 0 ; i < c.size(); i++)
-        cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, c[i], GRB_CONTINUOUS);
+            cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, c[i], GRB_CONTINUOUS);
         model.update();
         
         GRBVar* x = 0;
@@ -966,12 +966,17 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_, int wslac
         
         //add continuous variables
         for (int i = 0 ; i < c.size(); i++)
-            cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, c[i], GRB_CONTINUOUS);
+        {
+            if (c[i] > 0)    // alpha
+                cVars[i] = model.addVar(0, 1, 1, GRB_BINARY, "slack");
+            else            // real variables
+                cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, c[i], GRB_CONTINUOUS, "x");
+        }
         model.update();
         
         GRBVar* x = 0;
         x = model.getVars();  
-        int numX = model.get(GRB_IntAttr_NumVars);        
+        // int numX = model.get(GRB_IntAttr_NumVars);        
         
         //// equality constraints
         if (E.size() > 0)
@@ -1051,23 +1056,54 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_, int wslac
             }
         }
 
-        // add boolean variables
-        GRBVar bVars[numSlackVar];
-        for (int i = 0; i < numSlackVar; i++)
-            bVars[i] = model.addVar(0, 1, 1, GRB_BINARY, "y");
-        model.update(); 
+        // // add boolean variables
+        // GRBVar bVars[numSlackVar];
+        // for (int i = 0; i < numSlackVar; i++)
+        //     bVars[i] = model.addVar(0, 1, 1, GRB_BINARY, "y");
+        // model.update(); 
         
-        GRBVar* y = 0;
-        y = model.getVars();
+        // GRBVar* y = 0;
+        // y = model.getVars();
 
-        // inequality        
-        for (int i = 0; i < numSlackVar; i++ ){
-            GRBLinExpr expr = 0;
-            expr += 1.0 * x[slackIndices[i]];
-            expr -= 100.0 * y[i+numX]; //+numX
-            model.addConstr(expr <= 0, "ineq2");
-        }
-        model.update();   
+        // // inequality        
+        // for (int i = 0; i < numSlackVar; i++ ){
+        //     GRBLinExpr expr = 0;
+        //     expr += 1.0 * x[slackIndices[i]];
+        //     expr -= 100.0 * y[i+numX]; //+numX
+        //     model.addConstr(expr <= 0, "ineq2");
+        // }
+        // model.update();   
+
+        // equality
+        // vector<GRBVar> variables;
+        // int previousL = 0;
+        // for (int i = 0; i < numSlackVar; i++ )
+        // {
+        //     if (i != 0 && slackIndices[i] - previousL > 2)
+        //     {
+        //         GRBLinExpr expr = 0;
+        //         //expr = grb.LinExpr(ones(len(variables)), variables)
+        //         //model.addConstr(expr, grb.GRB.EQUAL, len(variables) -1)
+        //         for (int j = 0 ; j < variables.size() ; j ++)
+        //             expr += variables[j];
+        //         model.addConstr(expr == variables.size()-1, "eq2");
+        //         //delete varIndices; int varIndices[MAX]; k =0;
+        //         variables.clear();
+        //         variables.push_back(y[i+numX]);
+        //     }
+        //     else if (slackIndices[i] != 0)
+        //         variables.push_back(y[i+numX]);
+        //     previousL = slackIndices[i];
+        // }
+              
+        // if (variables.size() > 1)
+        // {
+        //     GRBLinExpr expr = 0;
+        //     for (int i = 0; i < variables.size(); i++)
+        //         expr += variables[i];
+        //     model.addConstr(expr == variables.size()-1, "last");
+        // }
+        // model.update();    
 
         // equality
         vector<GRBVar> variables;
@@ -1084,10 +1120,10 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_, int wslac
                 model.addConstr(expr == variables.size()-1, "eq2");
                 //delete varIndices; int varIndices[MAX]; k =0;
                 variables.clear();
-                variables.push_back(y[i+numX]);
+                variables.push_back(x[slackIndices[i]]);
             }
             else if (slackIndices[i] != 0)
-                variables.push_back(y[i+numX]);
+                variables.push_back(x[slackIndices[i]]);
             previousL = slackIndices[i];
         }
               
@@ -1104,7 +1140,8 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_, int wslac
         {
             GRBLinExpr expr = 0;
             for (int i = 0; i <numSlackVar; i++)
-                expr += y[i+numX]; //+numX
+                expr += x[slackIndices[i]];
+                // expr += y[i+numX]; //+numX
             model.setObjective(expr,GRB_MINIMIZE);
         }
         model.optimize();
@@ -1130,6 +1167,10 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_, int wslac
         //     tmp.append(bVars[i].get(GRB_DoubleAttr_X));
         //     cout << extract<double>(tmp[i]) << endl;
         // }
+
+        if (model.get(GRB_IntAttr_IsMIP) == 0) {
+            throw GRBException("Model is not a MIP");
+        }
         
         return result;
     
@@ -1183,6 +1224,8 @@ resultData solveMIP_cost (list& c_, list& A_, list& b_, list& E_, list& e_, int 
         {
             if (i == numC-nVarEnd || i == numC-nVarEnd+1 || i == numC-nVarEnd+2)    // for the cost function
                 cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, 1.0, GRB_CONTINUOUS);
+            else if (c[i] > 0)    // alpha
+                cVars[i] = model.addVar(0, 1, 1, GRB_BINARY, "slack");
             else 
                 cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, c[i], GRB_CONTINUOUS);
         }
@@ -1270,23 +1313,54 @@ resultData solveMIP_cost (list& c_, list& A_, list& b_, list& E_, list& e_, int 
             }
         }
 
-        // add boolean variables
-        GRBVar bVars[numSlackVar];
-        for (int i = 0; i < numSlackVar; i++)
-            bVars[i] = model.addVar(0, 1, 1, GRB_BINARY, "y");
-        model.update(); 
+        // // add boolean variables
+        // GRBVar bVars[numSlackVar];
+        // for (int i = 0; i < numSlackVar; i++)
+        //     bVars[i] = model.addVar(0, 1, 1, GRB_BINARY, "y");
+        // model.update(); 
         
-        GRBVar* y = 0;
-        y = model.getVars();
+        // GRBVar* y = 0;
+        // y = model.getVars();
 
-        // inequality        
-        for (int i = 0; i < numSlackVar; i++ ){
-            GRBLinExpr expr = 0;
-            expr += 1.0 * x[slackIndices[i]];
-            expr -= 100.0 * y[i+numX]; //+numX
-            model.addConstr(expr <= 0, "ineq2");
-        }
-        model.update();   
+        // // inequality        
+        // for (int i = 0; i < numSlackVar; i++ ){
+        //     GRBLinExpr expr = 0;
+        //     expr += 1.0 * x[slackIndices[i]];
+        //     expr -= 100.0 * y[i+numX]; //+numX
+        //     model.addConstr(expr <= 0, "ineq2");
+        // }
+        // model.update();   
+
+        // // equality
+        // vector<GRBVar> variables;
+        // int previousL = 0;
+        // for (int i = 0; i < numSlackVar; i++ )
+        // {
+        //     if (i != 0 && slackIndices[i] - previousL > 2)
+        //     {
+        //         GRBLinExpr expr = 0;
+        //         //expr = grb.LinExpr(ones(len(variables)), variables)
+        //         //model.addConstr(expr, grb.GRB.EQUAL, len(variables) -1)
+        //         for (int j = 0 ; j < variables.size() ; j ++)
+        //             expr += variables[j];
+        //         model.addConstr(expr == variables.size()-1, "eq2");
+        //         //delete varIndices; int varIndices[MAX]; k =0;
+        //         variables.clear();
+        //         variables.push_back(y[i+numX]);
+        //     }
+        //     else if (slackIndices[i] != 0)
+        //         variables.push_back(y[i+numX]);
+        //     previousL = slackIndices[i];
+        // }
+              
+        // if (variables.size() > 1)
+        // {
+        //     GRBLinExpr expr = 0;
+        //     for (int i = 0; i < variables.size(); i++)
+        //         expr += variables[i];
+        //     model.addConstr(expr == variables.size()-1, "last");
+        // }
+        // model.update();    
 
         // equality
         vector<GRBVar> variables;
@@ -1303,10 +1377,10 @@ resultData solveMIP_cost (list& c_, list& A_, list& b_, list& E_, list& e_, int 
                 model.addConstr(expr == variables.size()-1, "eq2");
                 //delete varIndices; int varIndices[MAX]; k =0;
                 variables.clear();
-                variables.push_back(y[i+numX]);
+                variables.push_back(x[slackIndices[i]]);
             }
             else if (slackIndices[i] != 0)
-                variables.push_back(y[i+numX]);
+                variables.push_back(x[slackIndices[i]]);
             previousL = slackIndices[i];
         }
               
@@ -1324,7 +1398,7 @@ resultData solveMIP_cost (list& c_, list& A_, list& b_, list& E_, list& e_, int 
         if (wslack == 1)
         {
             for (int i = 0; i <numSlackVar; i++)
-                expr += y[i+numX]; //+numX
+                expr += x[slackIndices[i]]; 
         }
 
         // distance cost function
@@ -1358,6 +1432,10 @@ resultData solveMIP_cost (list& c_, list& A_, list& b_, list& E_, list& e_, int 
         //     tmp.append(bVars[i].get(GRB_DoubleAttr_X));
         //     cout << extract<double>(tmp[i]) << endl;
         // }
+
+        if (model.get(GRB_IntAttr_IsMIP) == 0) {
+            throw GRBException("Model is not a MIP");
+        }
         
         return result;
     
