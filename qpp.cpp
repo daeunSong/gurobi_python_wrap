@@ -1,4 +1,4 @@
- #include <boost/python.hpp>
+#include <boost/python.hpp>
 #include <boost/python/list.hpp>
 #include <boost/python/extract.hpp>
 #include "gurobi_c++.h"
@@ -16,8 +16,11 @@ static const double UNBOUNDED_DOWN = -100000.;
 typedef struct ResultData
 {
     list x;
-    double time;
+    int status;
     bool success;
+    double cost;
+    double time;
+    
 } resultData;
 
 int nonZeroCnt(double* A, int len)
@@ -72,27 +75,24 @@ resultData solveglpk (list& c_, list& A_, list& b_, list& E_, list& e_)
     glp_init_smcp(&opts);
     opts.msg_lev = GLP_MSG_OFF;
     glp_prob* lp;
-    int ia[1 + 20000];                // Row indices of each element
-    int ja[1 + 20000];                // column indices of each element
-    double ar[1 + 20000];             // numerical values of corresponding elements
-    lp = glp_create_prob();           // creates a problem object
-    glp_set_prob_name(lp, "sample");  // assigns a symbolic name to the problem object
-    glp_set_obj_dir(lp, GLP_MIN);     // calls the routine glp_set_obj_dir to set the
-                                    // omptimization direction flag,
-                                    // where GLP_MAX means maximization
+    int ia[1 + 20000];     
+    int ja[1 + 20000];        
+    double ar[1 + 20000];   
+    lp = glp_create_prob();        
+    glp_set_prob_name(lp, "lp"); 
+    glp_set_obj_dir(lp, GLP_MIN);     
 
     // ROWS
     const int numEqConstraints = CE.size();
     const int numIneqConstraints = CI.size();
     const int num_constraints_total = numEqConstraints + numIneqConstraints;
     glp_add_rows(lp, num_constraints_total);
-    int idrow = 1;  // adds three rows to the problem object
+    int idrow = 1; 
     int idcol = 1;
     int idConsMat = 1;
     int xsize = 0;
     if (CE.size() != 0) xsize = CE[0].size();
     if (CI.size() != 0) xsize = CI[0].size();
-    //int xsize = (int)(x.size());
     
     for (int i = 0; i < numIneqConstraints; ++i, ++idrow) 
     {
@@ -123,8 +123,6 @@ resultData solveglpk (list& c_, list& A_, list& b_, list& E_, list& e_)
 
     // COLUMNS
     glp_add_cols(lp, xsize);
-    //VectorXd miB = minBounds.size() > 0 ? minBounds : VectorXd::Ones(xsize) * UNBOUNDED_DOWN;
-    //VectorXd maB = maxBounds.size() > 0 ? maxBounds : VectorXd::Ones(xsize) * UNBOUNDED_UP;
     for (int i = 0; i < xsize; ++i, ++idcol) 
     {
         glp_set_col_bnds(lp, idcol, GLP_FR, UNBOUNDED_DOWN, UNBOUNDED_UP);
@@ -134,21 +132,23 @@ resultData solveglpk (list& c_, list& A_, list& b_, list& E_, list& e_)
 
     int res = glp_simplex(lp, &opts);
     const clock_t end_time = clock();
-    res = glp_get_status(lp);
+    result.status = glp_get_status(lp);
     double time = double(end_time - begin_time)/CLOCKS_PER_SEC*1000;
         
     list r;
     result.time = time;
-    if (res == GLP_OPT) 
+    if (result.status == GLP_OPT) 
     {
         result.success = true;
         cost = glp_get_obj_val(lp);  // obtains a computed value of the objective function
         idrow = 1;
         for (int i = 0; i < xsize; ++i, ++idrow) r.append(glp_get_col_prim(lp, idrow));
+        result.cost = glp_get_obj_val(lp);
     }
     else
     {
         result.success = false;
+        result.cost = 0;
     }
     result.x = r;
     
@@ -161,6 +161,148 @@ resultData solveglpk (list& c_, list& A_, list& b_, list& E_, list& e_)
     return result;
 }
 
+resultData solveQP (list& C_, list& c_, list& A_, list& b_, list& E_, list& e_)
+{  
+    resultData result; 
+    // python::list to std::vector 
+
+    vector< vector<double> > C;
+    massadd2(C_, C);
+
+    vector<double> c;
+    massadd(c_, c);
+    
+    vector< vector<double> > A;
+    massadd2(A_, A);
+    
+    vector<double> b;
+    massadd(b_, b);
+    
+    vector< vector<double> > E;
+    massadd2(E_, E);
+    
+    vector<double> e;
+    massadd(e_, e);
+    
+    
+    try 
+    {
+        const clock_t begin_time = clock();
+        GRBEnv env = GRBEnv();
+        GRBModel model = GRBModel(env);
+        model.getEnv().set(GRB_StringParam_LogFile, "");
+        model.getEnv().set(GRB_IntParam_OutputFlag, 0);
+        
+        GRBVar cVars[c.size()];
+        
+        // add real variables
+        for (int i = 0 ; i < c.size(); i++)
+            cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, c[i], GRB_CONTINUOUS);
+            
+        model.update();
+        
+        GRBVar* x = 0;
+        x = model.getVars();        
+        
+        // equality constraints
+        if (E.size() > 0)
+        {
+            for (int i = 0; i < E.size(); i ++)
+            {
+                vector<int> idx;
+                for (int j = 0; j < E[i].size(); j++)
+                {
+                    if (E[i][j] != 0.0)
+                        idx.push_back(j);
+                }
+                
+                GRBVar variables[idx.size()];
+                double coeff[idx.size()];
+                for (int j = 0; j < idx.size(); j++)
+                {
+                    variables[j] = x[idx[j]];
+                    coeff[j] = E[i][idx[j]];
+                }
+                GRBLinExpr expr = 0;
+                expr.addTerms(coeff, variables, idx.size());
+                model.addConstr(expr == e[i]);
+                idx.clear();
+            }
+        }
+        model.update();
+        
+        //// inequality constraints
+        if (A.size() > 0)
+        {
+            for (int i = 0; i < A.size(); i ++)
+            {
+                vector<int> idx;
+                for (int j = 0; j < A[i].size(); j++)
+                {
+                    if (A[i][j] != 0.0)
+                        idx.push_back(j);
+                }
+                        
+                GRBVar variables[idx.size()];
+                double coeff[idx.size()];
+                for (int j = 0; j < idx.size(); j++)
+                {
+                    variables[j] = x[idx[j]];
+                    coeff[j] = A[i][idx[j]];
+                }
+                GRBLinExpr expr = 0;
+                expr.addTerms(coeff, variables, idx.size());
+                model.addConstr(expr <= b[i]);
+                idx.clear();
+            }
+            
+        }
+        model.update();
+
+        // objective function : QUAD
+        GRBQuadExpr obj = 0;
+        for (int j = 0; j < c.size(); j++)
+            obj += c[j]*x[j];
+        for (int i = 0; i < C.size(); i++)
+            for (int j = 0; j < C[i].size(); j++)
+            if (C[i][j] != 0)
+                obj += C[i][j]*x[i]*x[j];
+        model.setObjective(obj,GRB_MINIMIZE);
+        model.optimize();
+        
+        const clock_t end_time = clock();
+        double time = double(end_time - begin_time)/CLOCKS_PER_SEC*1000;
+        
+        list r;
+        result.time = time;
+        result.status = model.get(GRB_IntAttr_Status);
+        double cost = 0;
+
+        if (result.status == 2)
+        {
+            result.success = true;
+            for (int i = 0; i < c.size(); i++)
+                r.append(cVars[i].get(GRB_DoubleAttr_X));
+            cost = model.get(GRB_DoubleAttr_ObjVal);
+            cout << cost << endl;
+            result.cost = cost;
+        }
+        else
+        {
+            result.success = false;
+        }
+        result.x = r;
+        
+        return result;
+    
+    } catch(GRBException e){
+        cout << "Error code = " << e.getErrorCode() << endl;
+        //cout << e.getMessage() << endl;
+    } catch (error_already_set) {
+        PyErr_Print();
+    }
+    
+}
 
 resultData solveLP (list& c_, list& A_, list& b_, list& E_, list& e_)
 {  
@@ -192,20 +334,20 @@ resultData solveLP (list& c_, list& A_, list& b_, list& E_, list& e_)
         
         GRBVar cVars[c.size()];
         
-        //add continuous variables
+        // add real variables
         for (int i = 0 ; i < c.size(); i++)
             cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, c[i], GRB_CONTINUOUS);
+            
         model.update();
         
         GRBVar* x = 0;
         x = model.getVars();        
         
-        //// equality constraints
+        // equality constraints
         if (E.size() > 0)
         {
             for (int i = 0; i < E.size(); i ++)
             {
-                //idx = [j for j, el in enumerate(E[i].tolist()) if el != 0.]
                 vector<int> idx;
                 for (int j = 0; j < E[i].size(); j++)
                 {
@@ -213,8 +355,6 @@ resultData solveLP (list& c_, list& A_, list& b_, list& E_, list& e_)
                         idx.push_back(j);
                 }
                 
-                //variables = x[idx]
-                //coeff = E[i,idx]
                 GRBVar variables[idx.size()];
                 double coeff[idx.size()];
                 for (int j = 0; j < idx.size(); j++)
@@ -222,12 +362,9 @@ resultData solveLP (list& c_, list& A_, list& b_, list& E_, list& e_)
                     variables[j] = x[idx[j]];
                     coeff[j] = E[i][idx[j]];
                 }
-                //expr = grb.LinExpr(coeff, variables)
                 GRBLinExpr expr = 0;
                 expr.addTerms(coeff, variables, idx.size());
-                //model.addConstr(expr, grb.GRB.EQUAL, e[i])
                 model.addConstr(expr == e[i]);
-                //cout << expr << endl;
                 idx.clear();
             }
         }
@@ -238,7 +375,6 @@ resultData solveLP (list& c_, list& A_, list& b_, list& E_, list& e_)
         {
             for (int i = 0; i < A.size(); i ++)
             {
-                //idx = [j for j, el in enumerate(A[i].tolist()) if el != 0.]
                 vector<int> idx;
                 for (int j = 0; j < A[i].size(); j++)
                 {
@@ -246,8 +382,6 @@ resultData solveLP (list& c_, list& A_, list& b_, list& E_, list& e_)
                         idx.push_back(j);
                 }
                         
-                //variables = x[idx]
-                //coeff = a[i,idx]
                 GRBVar variables[idx.size()];
                 double coeff[idx.size()];
                 for (int j = 0; j < idx.size(); j++)
@@ -255,23 +389,21 @@ resultData solveLP (list& c_, list& A_, list& b_, list& E_, list& e_)
                     variables[j] = x[idx[j]];
                     coeff[j] = A[i][idx[j]];
                 }
-                //expr = grb.LinExpr(coeff, variables)
                 GRBLinExpr expr = 0;
                 expr.addTerms(coeff, variables, idx.size());
-                //model.addConstr(expr, grb.GRB.LESS_EQUAL, b[i])
                 model.addConstr(expr <= b[i]);
-                //cout << expr << endl;
                 idx.clear();
             }
             
         }
         model.update();
 
-        GRBQuadExpr expr = 0;
-        // slack variables sum
+        // objective function : slack variables sum
+        GRBLinExpr obj = 0;
         for (int i = 0; i <c.size(); i++)
-            expr += x[i]*c[i]; //+numX
-        model.set(GRB_IntAttr_ModelSense, GRB_MINIMIZE);
+            obj += x[i]*c[i]; 
+
+        model.setObjective(obj,GRB_MINIMIZE);
         model.optimize();
         
         const clock_t end_time = clock();
@@ -279,12 +411,17 @@ resultData solveLP (list& c_, list& A_, list& b_, list& E_, list& e_)
         
         list r;
         result.time = time;
+        result.status = model.get(GRB_IntAttr_Status);
+        double cost = 0;
 
-        if (model.get(GRB_IntAttr_Status) == 2)
+        if (result.status == 2)
         {
             result.success = true;
             for (int i = 0; i < c.size(); i++)
                 r.append(cVars[i].get(GRB_DoubleAttr_X));
+            cost = model.get(GRB_DoubleAttr_ObjVal);
+            cout << cost << endl;
+            result.cost = cost;
         }
         else
         {
@@ -303,10 +440,10 @@ resultData solveLP (list& c_, list& A_, list& b_, list& E_, list& e_)
     
 }
 
-
-resultData solveLP_init (list& c_, list& A_, list& b_, list& E_, list& e_)
-{   
+resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_)
+{
     resultData result;
+    
     // python::list to std::vector 
     vector<double> c;
     massadd(c_, c);
@@ -334,20 +471,24 @@ resultData solveLP_init (list& c_, list& A_, list& b_, list& E_, list& e_)
         
         GRBVar cVars[c.size()];
         
-        //add continuous variables
+        // add continuous variables
         for (int i = 0 ; i < c.size(); i++)
-            cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, c[i], GRB_CONTINUOUS);
+        {
+            if (c[i] > 0)    // alpha
+                cVars[i] = model.addVar(0, 1, 1, GRB_BINARY, "slack");
+            else            // real variables
+                cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, "x");
+        }
         model.update();
         
         GRBVar* x = 0;
-        x = model.getVars();        
+        x = model.getVars();     
         
-        //// equality constraints
+        // equality constraints
         if (E.size() > 0)
         {
             for (int i = 0; i < E.size(); i ++)
             {
-                //idx = [j for j, el in enumerate(E[i].tolist()) if el != 0.]
                 vector<int> idx;
                 for (int j = 0; j < E[i].size(); j++)
                 {
@@ -355,8 +496,6 @@ resultData solveLP_init (list& c_, list& A_, list& b_, list& E_, list& e_)
                         idx.push_back(j);
                 }
                 
-                //variables = x[idx]
-                //coeff = E[i,idx]
                 GRBVar variables[idx.size()];
                 double coeff[idx.size()];
                 for (int j = 0; j < idx.size(); j++)
@@ -364,23 +503,19 @@ resultData solveLP_init (list& c_, list& A_, list& b_, list& E_, list& e_)
                     variables[j] = x[idx[j]];
                     coeff[j] = E[i][idx[j]];
                 }
-                //expr = grb.LinExpr(coeff, variables)
                 GRBLinExpr expr = 0;
                 expr.addTerms(coeff, variables, idx.size());
-                //model.addConstr(expr, grb.GRB.EQUAL, e[i])
                 model.addConstr(expr == e[i]);
-                //cout << expr << endl;
                 idx.clear();
             }
         }
         model.update();
         
-        //// inequality constraints
+        // inequality constraints
         if (A.size() > 0)
         {
             for (int i = 0; i < A.size(); i ++)
             {
-                //idx = [j for j, el in enumerate(A[i].tolist()) if el != 0.]
                 vector<int> idx;
                 for (int j = 0; j < A[i].size(); j++)
                 {
@@ -388,8 +523,6 @@ resultData solveLP_init (list& c_, list& A_, list& b_, list& E_, list& e_)
                         idx.push_back(j);
                 }
                         
-                //variables = x[idx]
-                //coeff = a[i,idx]
                 GRBVar variables[idx.size()];
                 double coeff[idx.size()];
                 for (int j = 0; j < idx.size(); j++)
@@ -397,547 +530,96 @@ resultData solveLP_init (list& c_, list& A_, list& b_, list& E_, list& e_)
                     variables[j] = x[idx[j]];
                     coeff[j] = A[i][idx[j]];
                 }
-                //expr = grb.LinExpr(coeff, variables)
                 GRBLinExpr expr = 0;
                 expr.addTerms(coeff, variables, idx.size());
-                //model.addConstr(expr, grb.GRB.LESS_EQUAL, b[i])
                 model.addConstr(expr <= b[i]);
-                //cout << expr << endl;
                 idx.clear();
             }
             
         }
         model.update();
-
-        GRBQuadExpr expr = 0;
-        // slack variables sum
-        for (int i = 0; i <c.size(); i++)
-            expr += x[i]*c[i]; //+numX
-        model.set(GRB_IntAttr_ModelSense, GRB_MINIMIZE);
-        model.optimize();
-        const clock_t end_time = clock();
         
-        model.write("model.mps");
-        
-        double time = double(end_time - begin_time)/CLOCKS_PER_SEC*1000;
-        
-        list r;
-        result.time= time;
-        if (model.get(GRB_IntAttr_Status) == 2)
+        vector<int> slackIndices;
+        for (int i = 0; i < c.size(); i++)
         {
-            result.success = true;
-            for (int i = 0; i < c.size(); i++)
-                r.append(cVars[i].get(GRB_DoubleAttr_X));
+            if (c[i] > 0)
+                slackIndices.push_back(i);
         }
-        else
-        {
-            result.success = false;
-        }
-        result.x = r;
-        
-        return result;
-    
-    } catch(GRBException e){
-        cout << "Error code = " << e.getErrorCode() << endl;
-        //cout << e.getMessage() << endl;
-    } catch (error_already_set) {
-        PyErr_Print();
-    }
-    
-}
 
-resultData solveLP_iter (list& c_, list& A_, list& b_, list& E_, list& e_)
-{   
-    resultData result;
-    // python::list to std::vector 
-    vector<double> c;
-    massadd(c_, c);
-    
-    vector< vector<double> > A;
-    massadd2(A_, A);
-    
-    vector<double> b;
-    massadd(b_, b);
-    
-    vector< vector<double> > E;
-    massadd2(E_, E);
-    
-    vector<double> e;
-    massadd(e_, e);
-    
-    
-    try 
-    {
-        const clock_t begin_time = clock();
-        GRBEnv env = GRBEnv();
-        GRBModel* model = new GRBModel(env, "model.mps");
-        model->getEnv().set(GRB_StringParam_LogFile, "");
-        model->getEnv().set(GRB_IntParam_OutputFlag, 0);
-        
-        int numC = c.size();
-        GRBVar cVars[numC];
-
-        GRBVar* x = 0;
-        x = model->getVars(); 
-
-        //add continuous variables
-        for (int i = 0 ; i < c.size(); i++)
+        // equality slack sum
+        vector<GRBVar> variables;
+        int previousL = 0;
+        for (int i = 0; i < slackIndices.size(); i++ )
         {
-            x[i].set(GRB_DoubleAttr_Obj, c[i]);
-            cVars[i] = x[i];
-        }
-        model->update(); 
-        
-        GRBQuadExpr expr = 0;
-        // slack variables sum
-        for (int i = 0; i <numC; i++)
-            expr += x[i]*c[i]; //+numX
-
-        model->setObjective(expr,GRB_MINIMIZE);
-        model->optimize();
-        
-        const clock_t end_time = clock();
-        double time = double(end_time - begin_time)/CLOCKS_PER_SEC*1000;
-        
-        
-        list r;
-        result.time= time;
-        if (model->get(GRB_IntAttr_Status) == 2)
-        {
-            model->write("model.mps");
-            result.success = true;
-            for (int i = 0; i < c.size(); i++)
-                r.append(cVars[i].get(GRB_DoubleAttr_X));
-        }
-        else
-        {
-            result.success = false;
-        }
-        result.x = r;
-        
-        return result;
-    
-    } catch(GRBException e){
-        cout << "Error code = " << e.getErrorCode() << endl;
-        //cout << e.getMessage() << endl;
-    } catch (error_already_set) {
-        PyErr_Print();
-    }
-    
-}  
-  
-
-resultData solveLP_cost (list& c_, list& A_, list& b_, list& E_, list& e_, int nVarEnd, list& goal_, double weight)
-{   
-    resultData result;
-    // python::list to std::vector 
-    vector<double> c;
-    massadd(c_, c);
-    
-    vector< vector<double> > A;
-    massadd2(A_, A);
-    
-    vector<double> b;
-    massadd(b_, b);
-    
-    vector< vector<double> > E;
-    massadd2(E_, E);
-    
-    vector<double> e;
-    massadd(e_, e);
-    
-    vector<double> goal;
-    massadd(goal_,goal);
-    
-    
-    try 
-    {
-        const clock_t begin_time = clock();
-        GRBEnv env = GRBEnv();
-        GRBModel model = GRBModel(env);
-        model.getEnv().set(GRB_IntParam_OutputFlag, 0);
-        
-        int numC = c.size();
-        GRBVar cVars[numC];
-               
-        //add continuous variables
-        for (int i = 0 ; i < numC; i++)
-        {
-            if (i == numC-nVarEnd || i == numC-nVarEnd+1 || i == numC-nVarEnd+2)    // for the cost function
-                cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, 1.0, GRB_CONTINUOUS);
-            else
-                cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, c[i], GRB_CONTINUOUS);
-        }
-        model.update();
-        
-        GRBVar* x = 0;
-        x = model.getVars(); 
-        
-        //// equality constraints
-        if (E.size() > 0)
-        {
-            for (int i = 0; i < E.size(); i ++)
+            if (i != 0 && slackIndices[i] - previousL > 2)
             {
-                //idx = [j for j, el in enumerate(E[i].tolist()) if el != 0.]
-                vector<int> idx;
-                for (int j = 0; j < E[i].size(); j++)
-                {
-                    if (E[i][j] != 0.0)
-                        idx.push_back(j);
-                }
-                
-                //variables = x[idx]
-                //coeff = E[i,idx]
-                GRBVar variables[idx.size()];
-                double coeff[idx.size()];
-                for (int j = 0; j < idx.size(); j++)
-                {
-                    variables[j] = x[idx[j]];
-                    coeff[j] = E[i][idx[j]];
-                }
-                //expr = grb.LinExpr(coeff, variables)
                 GRBLinExpr expr = 0;
-                expr.addTerms(coeff, variables, idx.size());
-                //model.addConstr(expr, grb.GRB.EQUAL, e[i])
-                model.addConstr(expr == e[i]);
-                //cout << expr << endl;
-                idx.clear();
+                for (int j = 0 ; j < variables.size() ; j ++)
+                    expr += variables[j];
+                model.addConstr(expr == variables.size()-1, "eq2");
+                variables.clear();
+                variables.push_back(x[slackIndices[i]]);
             }
+            else if (slackIndices[i] != 0)
+                variables.push_back(x[slackIndices[i]]);
+            previousL = slackIndices[i];
         }
-        model.update();
-        
-        //// inequality constraints
-        if (A.size() > 0)
+              
+        if (variables.size() > 1)
         {
-            for (int i = 0; i < A.size(); i ++)
-            {
-                //idx = [j for j, el in enumerate(A[i].tolist()) if el != 0.]
-                vector<int> idx;
-                for (int j = 0; j < A[i].size(); j++)
-                {
-                    if (A[i][j] != 0.0)
-                        idx.push_back(j);
-                }
-                        
-                //variables = x[idx]
-                //coeff = a[i,idx]
-                GRBVar variables[idx.size()];
-                double coeff[idx.size()];
-                for (int j = 0; j < idx.size(); j++)
-                {
-                    variables[j] = x[idx[j]];
-                    coeff[j] = A[i][idx[j]];
-                }
-                //expr = grb.LinExpr(coeff, variables)
-                GRBLinExpr expr = 0;
-                expr.addTerms(coeff, variables, idx.size());
-                //model.addConstr(expr, grb.GRB.LESS_EQUAL, b[i])
-                model.addConstr(expr <= b[i]);
-                //cout << expr << endl;
-                idx.clear();
-            }
-            
+            GRBLinExpr expr = 0;
+            for (int i = 0; i < variables.size(); i++)
+                expr += variables[i];
+            model.addConstr(expr == variables.size()-1, "last");
         }
-        
         model.update();    
-        
-        GRBQuadExpr expr = 0;
-        // slack variables sum
-        for (int i = 0; i <numC; i++)
-            expr += x[i]*c[i]; //+numX
-
-        // distance cost function
-        GRBLinExpr cx_end_diff = x[numC-nVarEnd]   - goal[0];
-        GRBLinExpr cy_end_diff = x[numC-nVarEnd+1] - goal[1];
-        GRBLinExpr cz_end_diff = x[numC-nVarEnd+2] - goal[2];
-        expr += (cx_end_diff * cx_end_diff + cy_end_diff * cy_end_diff + cz_end_diff * cz_end_diff) * weight;
-        
-        model.setObjective(expr,GRB_MINIMIZE);
         model.optimize();
-        
         const clock_t end_time = clock();
         double time = double(end_time - begin_time)/CLOCKS_PER_SEC*1000;
+        result.status = model.get(GRB_IntAttr_Status);
         
         list r;
         result.time= time;
-        if (model.get(GRB_IntAttr_Status) == 2)
+        double cost = 0;
+
+        if (result.status == 2)
         {
             result.success = true;
             for (int i = 0; i < c.size(); i++)
                 r.append(cVars[i].get(GRB_DoubleAttr_X));
+            cost = model.get(GRB_DoubleAttr_ObjVal);
+            result.cost = cost;
         }
         else
         {
             result.success = false;
         }
         result.x = r;
+
+        if (model.get(GRB_IntAttr_IsMIP) == 0) {
+            throw GRBException("Model is not a MIP");
+        }
         
         return result;
     
     } catch(GRBException e){
         cout << "Error code = " << e.getErrorCode() << endl;
-        //cout << e.getMessage() << endl;
+        cout << e.getMessage() << endl;
     } catch (error_already_set) {
-        PyErr_Print();
+        //PyErr_Print();
     }
+    
     
 }
 
-resultData solveLP_cost_init (list& c_, list& A_, list& b_, list& E_, list& e_, int nVarEnd, list& goal_, double weight)
-{   
-    resultData result;
-    // python::list to std::vector 
-    vector<double> c;
-    massadd(c_, c);
-    
-    vector< vector<double> > A;
-    massadd2(A_, A);
-    
-    vector<double> b;
-    massadd(b_, b);
-    
-    vector< vector<double> > E;
-    massadd2(E_, E);
-    
-    vector<double> e;
-    massadd(e_, e);
-    
-    vector<double> goal;
-    massadd(goal_,goal);
-    
-    
-    try 
-    {
-        const clock_t begin_time = clock();
-        GRBEnv env = GRBEnv();
-        GRBModel model = GRBModel(env);
-        model.getEnv().set(GRB_StringParam_LogFile, "");
-        model.getEnv().set(GRB_IntParam_OutputFlag, 0);
-        
-        int numC = c.size();
-        GRBVar cVars[numC];
-               
-        //add continuous variables
-        for (int i = 0 ; i < numC; i++)
-        {
-            if (i == numC-nVarEnd || i == numC-nVarEnd+1 || i == numC-nVarEnd+2)    // for the cost function
-                cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, 1.0, GRB_CONTINUOUS);
-            else 
-                cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, c[i], GRB_CONTINUOUS);
-        }
-        model.update();
-        
-        GRBVar* x = 0;
-        x = model.getVars(); 
-        
-        //// equality constraints
-        if (E.size() > 0)
-        {
-            for (int i = 0; i < E.size(); i ++)
-            {
-                //idx = [j for j, el in enumerate(E[i].tolist()) if el != 0.]
-                vector<int> idx;
-                for (int j = 0; j < E[i].size(); j++){
-                    if (E[i][j] != 0.0)
-                        idx.push_back(j);
-                }
-                
-                //variables = x[idx]
-                //coeff = E[i,idx]
-                GRBVar variables[idx.size()];
-                double coeff[idx.size()];
-                for (int j = 0; j < idx.size(); j++)
-                {
-                    variables[j] = x[idx[j]];
-                    coeff[j] = E[i][idx[j]];
-                }
-                //expr = grb.LinExpr(coeff, variables)
-                GRBLinExpr expr = 0;
-                expr.addTerms(coeff, variables, idx.size());
-                //model.addConstr(expr, grb.GRB.EQUAL, e[i])
-                model.addConstr(expr == e[i]);
-                //cout << expr << endl;
-                idx.clear();
-            }
-        }
-        model.update();
-        
-        //// inequality constraints
-        if (A.size() > 0)
-        {
-            for (int i = 0; i < A.size(); i ++)
-            {
-                //idx = [j for j, el in enumerate(A[i].tolist()) if el != 0.]
-                vector<int> idx;
-                for (int j = 0; j < A[i].size(); j++)
-                {
-                    if (A[i][j] != 0.0)
-                        idx.push_back(j);
-                }
-                        
-                //variables = x[idx]
-                //coeff = a[i,idx]
-                GRBVar variables[idx.size()];
-                double coeff[idx.size()];
-                for (int j = 0; j < idx.size(); j++)
-                {
-                    variables[j] = x[idx[j]];
-                    coeff[j] = A[i][idx[j]];
-                }
-                //expr = grb.LinExpr(coeff, variables)
-                GRBLinExpr expr = 0;
-                expr.addTerms(coeff, variables, idx.size());
-                //model.addConstr(expr, grb.GRB.LESS_EQUAL, b[i])
-                model.addConstr(expr <= b[i]);
-                //cout << expr << endl;
-                idx.clear();
-            }
-            
-        }
-        
-        model.update();    
-        
-        GRBQuadExpr expr = 0;
-        // slack variables sum
-        for (int i = 0; i <numC; i++)
-            expr += x[i]*c[i]; //+numX
-
-        // distance cost function
-        GRBLinExpr cx_end_diff = x[numC-nVarEnd]   - goal[0];
-        GRBLinExpr cy_end_diff = x[numC-nVarEnd+1] - goal[1];
-        GRBLinExpr cz_end_diff = x[numC-nVarEnd+2] - goal[2];
-        expr += (cx_end_diff * cx_end_diff + cy_end_diff * cy_end_diff + cz_end_diff * cz_end_diff) * weight;
-        
-        model.setObjective(expr,GRB_MINIMIZE);
-        model.optimize();
-        const clock_t end_time = clock();
-        model.write("model.mps");
-        
-        double time = double(end_time - begin_time)/CLOCKS_PER_SEC*1000;
-        
-        list r;
-        result.time= time;
-        if (model.get(GRB_IntAttr_Status) == 2)
-        {
-            result.success = true;
-            for (int i = 0; i < c.size(); i++)
-                r.append(cVars[i].get(GRB_DoubleAttr_X));
-        }
-        else
-        {
-            result.success = false;
-        }
-        result.x = r;
-        
-        return result;
-    
-    } catch(GRBException e){
-        cout << "Error code = " << e.getErrorCode() << endl;
-        //cout << e.getMessage() << endl;
-    } catch (error_already_set) {
-        PyErr_Print();
-    }
-    
-}
-
-resultData solveLP_cost_iter (list& c_, list& A_, list& b_, list& E_, list& e_, int nVarEnd, list& goal_, double weight)
-{   
-    resultData result;
-    // python::list to std::vector 
-    vector<double> c;
-    massadd(c_, c);
-    
-    vector< vector<double> > A;
-    massadd2(A_, A);
-    
-    vector<double> b;
-    massadd(b_, b);
-    
-    vector< vector<double> > E;
-    massadd2(E_, E);
-    
-    vector<double> e;
-    massadd(e_, e);
-    
-    vector<double> goal;
-    massadd(goal_,goal);
-    
-    
-    try 
-    {
-        const clock_t begin_time = clock();
-        GRBEnv env = GRBEnv();
-        GRBModel* model = new GRBModel(env, "model.mps");
-        model->getEnv().set(GRB_StringParam_LogFile, "");
-        model->getEnv().set(GRB_IntParam_OutputFlag, 0);
-
-        int numC = c.size();
-        GRBVar cVars[numC];
-
-        GRBVar* x = 0;
-        x = model->getVars(); 
-               
-        //modify variables
-        for (int i = 0 ; i < numC; i++)
-        {
-            if (i == numC-nVarEnd || i == numC-nVarEnd+1 || i == numC-nVarEnd+2)    // for the cost function
-                x[i].set(GRB_DoubleAttr_Obj, 1.);
-            else
-                x[i].set(GRB_DoubleAttr_Obj, c[i]);
-            cVars[i] = x[i];
-        }
-        model->update(); 
-        
-        GRBQuadExpr expr = 0;
-        // slack variables sum
-        for (int i = 0; i <numC; i++)
-            expr += x[i]*c[i]; //+numX
-
-        // distance cost function
-        GRBLinExpr cx_end_diff = x[numC-nVarEnd]   - goal[0];
-        GRBLinExpr cy_end_diff = x[numC-nVarEnd+1] - goal[1];
-        GRBLinExpr cz_end_diff = x[numC-nVarEnd+2] - goal[2];
-        expr += (cx_end_diff * cx_end_diff + cy_end_diff * cy_end_diff + cz_end_diff * cz_end_diff) * weight;
-        
-        model->setObjective(expr,GRB_MINIMIZE);
-        model->optimize();
-        const clock_t end_time = clock();
-        
-        double time = double(end_time - begin_time)/CLOCKS_PER_SEC*1000;
-        
-        list r;
-        result.time= time;
-        if (model->get(GRB_IntAttr_Status) == 2)
-        {
-            model->write("model.mps");
-            result.success = true;
-            for (int i = 0; i < c.size(); i++)
-                r.append(cVars[i].get(GRB_DoubleAttr_X));
-        }
-        else
-        {
-            result.success = false;
-        }
-        result.x = r;
-        
-        return result;
-    
-    } catch(GRBException e){
-        cout << "Error code = " << e.getErrorCode() << endl;
-        //cout << e.getMessage() << endl;
-    } catch (error_already_set) {
-        PyErr_Print();
-    }
-    
-}  
-  
-resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_, int wslack)
+resultData solveMIP_QP (list& C_, list& c_, list& A_, list& b_, list& E_, list& e_, list& goal_, int index)
 {
     resultData result;
-    //random gen
-    srand((unsigned int)time(NULL));
     
     // python::list to std::vector 
+    vector< vector<double> > C;
+    massadd2(C_, C);
+
     vector<double> c;
     massadd(c_, c);
     
@@ -952,6 +634,9 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_, int wslac
     
     vector<double> e;
     massadd(e_, e);
+
+    vector<double> goal;
+    massadd(goal_, goal);
     
     
     try 
@@ -970,20 +655,18 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_, int wslac
             if (c[i] > 0)    // alpha
                 cVars[i] = model.addVar(0, 1, 1, GRB_BINARY, "slack");
             else            // real variables
-                cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, c[i], GRB_CONTINUOUS, "x");
+                cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, "x");
         }
         model.update();
         
         GRBVar* x = 0;
-        x = model.getVars();  
-        // int numX = model.get(GRB_IntAttr_NumVars);        
+        x = model.getVars();     
         
         //// equality constraints
         if (E.size() > 0)
         {
             for (int i = 0; i < E.size(); i ++)
             {
-                //idx = [j for j, el in enumerate(E[i].tolist()) if el != 0.]
                 vector<int> idx;
                 for (int j = 0; j < E[i].size(); j++)
                 {
@@ -991,8 +674,6 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_, int wslac
                         idx.push_back(j);
                 }
                 
-                //variables = x[idx]
-                //coeff = E[i,idx]
                 GRBVar variables[idx.size()];
                 double coeff[idx.size()];
                 for (int j = 0; j < idx.size(); j++)
@@ -1000,12 +681,9 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_, int wslac
                     variables[j] = x[idx[j]];
                     coeff[j] = E[i][idx[j]];
                 }
-                //expr = grb.LinExpr(coeff, variables)
                 GRBLinExpr expr = 0;
                 expr.addTerms(coeff, variables, idx.size());
-                //model.addConstr(expr, grb.GRB.EQUAL, e[i])
                 model.addConstr(expr == e[i]);
-                //cout << expr << endl;
                 idx.clear();
             }
         }
@@ -1016,7 +694,6 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_, int wslac
         {
             for (int i = 0; i < A.size(); i ++)
             {
-                //idx = [j for j, el in enumerate(A[i].tolist()) if el != 0.]
                 vector<int> idx;
                 for (int j = 0; j < A[i].size(); j++)
                 {
@@ -1024,8 +701,6 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_, int wslac
                         idx.push_back(j);
                 }
                         
-                //variables = x[idx]
-                //coeff = a[i,idx]
                 GRBVar variables[idx.size()];
                 double coeff[idx.size()];
                 for (int j = 0; j < idx.size(); j++)
@@ -1033,12 +708,9 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_, int wslac
                     variables[j] = x[idx[j]];
                     coeff[j] = A[i][idx[j]];
                 }
-                //expr = grb.LinExpr(coeff, variables)
                 GRBLinExpr expr = 0;
                 expr.addTerms(coeff, variables, idx.size());
-                //model.addConstr(expr, grb.GRB.LESS_EQUAL, b[i])
                 model.addConstr(expr <= b[i]);
-                //cout << expr << endl;
                 idx.clear();
             }
             
@@ -1046,79 +718,23 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_, int wslac
         model.update();
         
         vector<int> slackIndices;
-        int numSlackVar = 0;
         for (int i = 0; i < c.size(); i++)
         {
             if (c[i] > 0)
-            {
                 slackIndices.push_back(i);
-                numSlackVar++;
-            }
         }
 
-        // // add boolean variables
-        // GRBVar bVars[numSlackVar];
-        // for (int i = 0; i < numSlackVar; i++)
-        //     bVars[i] = model.addVar(0, 1, 1, GRB_BINARY, "y");
-        // model.update(); 
-        
-        // GRBVar* y = 0;
-        // y = model.getVars();
-
-        // // inequality        
-        // for (int i = 0; i < numSlackVar; i++ ){
-        //     GRBLinExpr expr = 0;
-        //     expr += 1.0 * x[slackIndices[i]];
-        //     expr -= 100.0 * y[i+numX]; //+numX
-        //     model.addConstr(expr <= 0, "ineq2");
-        // }
-        // model.update();   
-
-        // equality
-        // vector<GRBVar> variables;
-        // int previousL = 0;
-        // for (int i = 0; i < numSlackVar; i++ )
-        // {
-        //     if (i != 0 && slackIndices[i] - previousL > 2)
-        //     {
-        //         GRBLinExpr expr = 0;
-        //         //expr = grb.LinExpr(ones(len(variables)), variables)
-        //         //model.addConstr(expr, grb.GRB.EQUAL, len(variables) -1)
-        //         for (int j = 0 ; j < variables.size() ; j ++)
-        //             expr += variables[j];
-        //         model.addConstr(expr == variables.size()-1, "eq2");
-        //         //delete varIndices; int varIndices[MAX]; k =0;
-        //         variables.clear();
-        //         variables.push_back(y[i+numX]);
-        //     }
-        //     else if (slackIndices[i] != 0)
-        //         variables.push_back(y[i+numX]);
-        //     previousL = slackIndices[i];
-        // }
-              
-        // if (variables.size() > 1)
-        // {
-        //     GRBLinExpr expr = 0;
-        //     for (int i = 0; i < variables.size(); i++)
-        //         expr += variables[i];
-        //     model.addConstr(expr == variables.size()-1, "last");
-        // }
-        // model.update();    
-
-        // equality
+        // equality slack sum
         vector<GRBVar> variables;
         int previousL = 0;
-        for (int i = 0; i < numSlackVar; i++ )
+        for (int i = 0; i < slackIndices.size(); i++ )
         {
             if (i != 0 && slackIndices[i] - previousL > 2)
             {
                 GRBLinExpr expr = 0;
-                //expr = grb.LinExpr(ones(len(variables)), variables)
-                //model.addConstr(expr, grb.GRB.EQUAL, len(variables) -1)
                 for (int j = 0 ; j < variables.size() ; j ++)
                     expr += variables[j];
                 model.addConstr(expr == variables.size()-1, "eq2");
-                //delete varIndices; int varIndices[MAX]; k =0;
                 variables.clear();
                 variables.push_back(x[slackIndices[i]]);
             }
@@ -1136,37 +752,39 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_, int wslac
         }
         model.update();    
 
-        if (wslack == 1)
-        {
-            GRBLinExpr expr = 0;
-            for (int i = 0; i <numSlackVar; i++)
-                expr += x[slackIndices[i]];
-                // expr += y[i+numX]; //+numX
-            model.setObjective(expr,GRB_MINIMIZE);
-        }
+
+        // objective function : QUAD
+        GRBQuadExpr obj = 0;
+        for (int j = 0; j < c.size(); j++)
+            obj += c[j]*x[j];
+        for (int i = 0; i < C.size(); i++)
+            for (int j = 0; j < C[i].size(); j++)
+            if (C[i][j] != 0)
+                obj += C[i][j]*x[i]*x[j];
+        model.setObjective(obj,GRB_MINIMIZE);
         model.optimize();
+
         const clock_t end_time = clock();
         double time = double(end_time - begin_time)/CLOCKS_PER_SEC*1000;
+        result.status = model.get(GRB_IntAttr_Status);
         
         list r;
         result.time= time;
-        if (model.get(GRB_IntAttr_Status) == 2)
+        double cost = 0;
+
+        if (result.status == 2)
         {
             result.success = true;
             for (int i = 0; i < c.size(); i++)
                 r.append(cVars[i].get(GRB_DoubleAttr_X));
+            cost = model.get(GRB_DoubleAttr_ObjVal);
+            result.cost = cost;
         }
         else
         {
             result.success = false;
         }
         result.x = r;
-
-        // list tmp;
-        // for (int i = 0; i < numSlackVar; i++){
-        //     tmp.append(bVars[i].get(GRB_DoubleAttr_X));
-        //     cout << extract<double>(tmp[i]) << endl;
-        // }
 
         if (model.get(GRB_IntAttr_IsMIP) == 0) {
             throw GRBException("Model is not a MIP");
@@ -1184,9 +802,10 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_, int wslac
     
 }
 
-resultData solveMIP_cost (list& c_, list& A_, list& b_, list& E_, list& e_, int nVarEnd, list& goal_, int wslack)
-{   
+resultData solveMIP_cost (list& c_, list& A_, list& b_, list& E_, list& e_, list& goal_, int index)
+{
     resultData result;
+    
     // python::list to std::vector 
     vector<double> c;
     massadd(c_, c);
@@ -1202,9 +821,9 @@ resultData solveMIP_cost (list& c_, list& A_, list& b_, list& E_, list& e_, int 
     
     vector<double> e;
     massadd(e_, e);
-    
+
     vector<double> goal;
-    massadd(goal_,goal);
+    massadd(goal_, goal);
     
     
     try 
@@ -1214,33 +833,27 @@ resultData solveMIP_cost (list& c_, list& A_, list& b_, list& E_, list& e_, int 
         GRBModel model = GRBModel(env);
         model.getEnv().set(GRB_StringParam_LogFile, "");
         model.getEnv().set(GRB_IntParam_OutputFlag, 0);
-        model.set(GRB_IntParam_Presolve, 0); // turn off the presolve
         
-        int numC = c.size();
-        GRBVar cVars[numC];
+        GRBVar cVars[c.size()];
         
         //add continuous variables
-        for (int i = 0 ; i < numC; i++)
+        for (int i = 0 ; i < c.size(); i++)
         {
-            if (i == numC-nVarEnd || i == numC-nVarEnd+1 || i == numC-nVarEnd+2)    // for the cost function
-                cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, 1.0, GRB_CONTINUOUS);
-            else if (c[i] > 0)    // alpha
+            if (c[i] > 0)    // alpha
                 cVars[i] = model.addVar(0, 1, 1, GRB_BINARY, "slack");
-            else 
-                cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, c[i], GRB_CONTINUOUS);
+            else            // real variables
+                cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, "x");
         }
         model.update();
         
         GRBVar* x = 0;
-        x = model.getVars();  
-        int numX = model.get(GRB_IntAttr_NumVars);        
+        x = model.getVars();     
         
         //// equality constraints
         if (E.size() > 0)
         {
             for (int i = 0; i < E.size(); i ++)
             {
-                //idx = [j for j, el in enumerate(E[i].tolist()) if el != 0.]
                 vector<int> idx;
                 for (int j = 0; j < E[i].size(); j++)
                 {
@@ -1248,8 +861,6 @@ resultData solveMIP_cost (list& c_, list& A_, list& b_, list& E_, list& e_, int 
                         idx.push_back(j);
                 }
                 
-                //variables = x[idx]
-                //coeff = E[i,idx]
                 GRBVar variables[idx.size()];
                 double coeff[idx.size()];
                 for (int j = 0; j < idx.size(); j++)
@@ -1257,12 +868,9 @@ resultData solveMIP_cost (list& c_, list& A_, list& b_, list& E_, list& e_, int 
                     variables[j] = x[idx[j]];
                     coeff[j] = E[i][idx[j]];
                 }
-                //expr = grb.LinExpr(coeff, variables)
                 GRBLinExpr expr = 0;
                 expr.addTerms(coeff, variables, idx.size());
-                //model.addConstr(expr, grb.GRB.EQUAL, e[i])
                 model.addConstr(expr == e[i]);
-                //cout << expr << endl;
                 idx.clear();
             }
         }
@@ -1273,7 +881,6 @@ resultData solveMIP_cost (list& c_, list& A_, list& b_, list& E_, list& e_, int 
         {
             for (int i = 0; i < A.size(); i ++)
             {
-                //idx = [j for j, el in enumerate(A[i].tolist()) if el != 0.]
                 vector<int> idx;
                 for (int j = 0; j < A[i].size(); j++)
                 {
@@ -1281,8 +888,6 @@ resultData solveMIP_cost (list& c_, list& A_, list& b_, list& E_, list& e_, int 
                         idx.push_back(j);
                 }
                         
-                //variables = x[idx]
-                //coeff = a[i,idx]
                 GRBVar variables[idx.size()];
                 double coeff[idx.size()];
                 for (int j = 0; j < idx.size(); j++)
@@ -1290,12 +895,9 @@ resultData solveMIP_cost (list& c_, list& A_, list& b_, list& E_, list& e_, int 
                     variables[j] = x[idx[j]];
                     coeff[j] = A[i][idx[j]];
                 }
-                //expr = grb.LinExpr(coeff, variables)
                 GRBLinExpr expr = 0;
                 expr.addTerms(coeff, variables, idx.size());
-                //model.addConstr(expr, grb.GRB.LESS_EQUAL, b[i])
                 model.addConstr(expr <= b[i]);
-                //cout << expr << endl;
                 idx.clear();
             }
             
@@ -1303,79 +905,23 @@ resultData solveMIP_cost (list& c_, list& A_, list& b_, list& E_, list& e_, int 
         model.update();
         
         vector<int> slackIndices;
-        int numSlackVar = 0;
-        for (int i = 0; i < numC; i++)
+        for (int i = 0; i < c.size(); i++)
         {
             if (c[i] > 0)
-            {
                 slackIndices.push_back(i);
-                numSlackVar++;
-            }
         }
 
-        // // add boolean variables
-        // GRBVar bVars[numSlackVar];
-        // for (int i = 0; i < numSlackVar; i++)
-        //     bVars[i] = model.addVar(0, 1, 1, GRB_BINARY, "y");
-        // model.update(); 
-        
-        // GRBVar* y = 0;
-        // y = model.getVars();
-
-        // // inequality        
-        // for (int i = 0; i < numSlackVar; i++ ){
-        //     GRBLinExpr expr = 0;
-        //     expr += 1.0 * x[slackIndices[i]];
-        //     expr -= 100.0 * y[i+numX]; //+numX
-        //     model.addConstr(expr <= 0, "ineq2");
-        // }
-        // model.update();   
-
-        // // equality
-        // vector<GRBVar> variables;
-        // int previousL = 0;
-        // for (int i = 0; i < numSlackVar; i++ )
-        // {
-        //     if (i != 0 && slackIndices[i] - previousL > 2)
-        //     {
-        //         GRBLinExpr expr = 0;
-        //         //expr = grb.LinExpr(ones(len(variables)), variables)
-        //         //model.addConstr(expr, grb.GRB.EQUAL, len(variables) -1)
-        //         for (int j = 0 ; j < variables.size() ; j ++)
-        //             expr += variables[j];
-        //         model.addConstr(expr == variables.size()-1, "eq2");
-        //         //delete varIndices; int varIndices[MAX]; k =0;
-        //         variables.clear();
-        //         variables.push_back(y[i+numX]);
-        //     }
-        //     else if (slackIndices[i] != 0)
-        //         variables.push_back(y[i+numX]);
-        //     previousL = slackIndices[i];
-        // }
-              
-        // if (variables.size() > 1)
-        // {
-        //     GRBLinExpr expr = 0;
-        //     for (int i = 0; i < variables.size(); i++)
-        //         expr += variables[i];
-        //     model.addConstr(expr == variables.size()-1, "last");
-        // }
-        // model.update();    
-
-        // equality
+        // equality slack sum
         vector<GRBVar> variables;
         int previousL = 0;
-        for (int i = 0; i < numSlackVar; i++ )
+        for (int i = 0; i < slackIndices.size(); i++ )
         {
             if (i != 0 && slackIndices[i] - previousL > 2)
             {
                 GRBLinExpr expr = 0;
-                //expr = grb.LinExpr(ones(len(variables)), variables)
-                //model.addConstr(expr, grb.GRB.EQUAL, len(variables) -1)
                 for (int j = 0 ; j < variables.size() ; j ++)
                     expr += variables[j];
                 model.addConstr(expr == variables.size()-1, "eq2");
-                //delete varIndices; int varIndices[MAX]; k =0;
                 variables.clear();
                 variables.push_back(x[slackIndices[i]]);
             }
@@ -1392,46 +938,35 @@ resultData solveMIP_cost (list& c_, list& A_, list& b_, list& E_, list& e_, int 
             model.addConstr(expr == variables.size()-1, "last");
         }
         model.update();    
-        
-        GRBQuadExpr expr = 0;
-        // slack variables sum
-        if (wslack == 1)
-        {
-            for (int i = 0; i <numSlackVar; i++)
-                expr += x[slackIndices[i]]; 
-        }
 
-        // distance cost function
-        GRBLinExpr cx_end_diff = x[numC-nVarEnd]   - goal[0];
-        GRBLinExpr cy_end_diff = x[numC-nVarEnd+1] - goal[1];
-        GRBLinExpr cz_end_diff = x[numC-nVarEnd+2] - goal[2];
-        expr += cx_end_diff * cx_end_diff + cy_end_diff * cy_end_diff + cz_end_diff * cz_end_diff;
-        
-        model.setObjective(expr,GRB_MINIMIZE);
+
+        GRBQuadExpr obj = 0;
+        // distance to the goal cost
+        obj = (goal[0]-x[index])*(goal[0]-x[index])+(goal[1]-x[index+1])*(goal[1]-x[index+1])+(goal[2]-x[index+2])*(goal[2]-x[index+2]);
+
+        model.setObjective(obj,GRB_MINIMIZE);
         model.optimize();
-
         const clock_t end_time = clock();
         double time = double(end_time - begin_time)/CLOCKS_PER_SEC*1000;
+        result.status = model.get(GRB_IntAttr_Status);
         
         list r;
         result.time= time;
-        if (model.get(GRB_IntAttr_Status) == 2)
+        double cost = 0;
+
+        if (result.status == 2)
         {
             result.success = true;
             for (int i = 0; i < c.size(); i++)
                 r.append(cVars[i].get(GRB_DoubleAttr_X));
+            cost = model.get(GRB_DoubleAttr_ObjVal);
+            result.cost = cost;
         }
         else
         {
             result.success = false;
         }
         result.x = r;
-
-        // list tmp;
-        // for (int i = 0; i < numSlackVar; i++){
-        //     tmp.append(bVars[i].get(GRB_DoubleAttr_X));
-        //     cout << extract<double>(tmp[i]) << endl;
-        // }
 
         if (model.get(GRB_IntAttr_IsMIP) == 0) {
             throw GRBException("Model is not a MIP");
@@ -1446,26 +981,28 @@ resultData solveMIP_cost (list& c_, list& A_, list& b_, list& E_, list& e_, int 
         //PyErr_Print();
     }
     
+    
 }
 
-BOOST_PYTHON_MODULE(qpg) {
+
+BOOST_PYTHON_MODULE(qpp) {
     // An established convention for using boost.python.
     using namespace boost::python;
 
     // Expose the functions
-    def("solveLP", solveLP);
-    def("solveLP_init", solveLP_init);
-    def("solveLP_iter", solveLP_iter);
-    def("solveLP_cost", solveLP_cost);
-    def("solveLP_cost_init", solveLP_cost_init);
-    def("solveLP_cost_iter", solveLP_cost_iter);
-    def("solveMIP", solveMIP);
-    def("solveMIP_cost", solveMIP_cost);
     def("solveglpk", solveglpk);
+    def("solveQP", solveLP);
+    def("solveLP", solveLP);
+    def("solveMIP", solveMIP);
+    def("solveMIP_QP", solveMIP_cost);
+    def("solveMIP_cost", solveMIP_cost);
     class_<ResultData>("ResultData")
         .def_readwrite("x", &ResultData::x)
-        .def_readwrite("time", &ResultData::time)
-        .def_readwrite("success", &ResultData::success);
+        .def_readwrite("status", &ResultData::status)
+        .def_readwrite("success", &ResultData::success)
+        .def_readwrite("cost", &ResultData::cost)
+        .def_readwrite("time", &ResultData::time);
+        
 }
 
  
@@ -1512,7 +1049,7 @@ main(int   argc,
     cout << "solveLP" << endl;
     result = solveLP(b, A, b, C, d);
     cout << "solveMIP" << endl;
-    result = solveMIP(b, A, b, C, d, 0);
+    result = solveMIP(b, A, b, C, d);
     cout << "solveglpk" << endl;
     result = solveglpk(b, A, b, C, d);
 
