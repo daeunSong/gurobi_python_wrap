@@ -612,7 +612,7 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_)
 
 }
 
-resultData solveMIP_QP (list& C_, list& c_, list& A_, list& b_, list& E_, list& e_, list& goal_, int index)
+resultData solveMIP_QP (list& C_, list& c_, list& A_, list& b_, list& E_, list& e_)
 {
     resultData result;
 
@@ -634,9 +634,6 @@ resultData solveMIP_QP (list& C_, list& c_, list& A_, list& b_, list& E_, list& 
 
     vector<double> e;
     massadd(e_, e);
-
-    vector<double> goal;
-    massadd(goal_, goal);
 
 
     try
