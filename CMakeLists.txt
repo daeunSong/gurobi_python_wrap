@@ -17,7 +17,7 @@ find_package(GUROBI REQUIRED)
 set(CMAKE_SHARED_MODULE_PREFIX "")
 
 include_directories(${GUROBI_INCLUDE_DIRS})
-#include_directories(${glpk_INCLUDE_DIRS})
+include_directories(${glpk_INCLUDE_DIRS})
 
 set(GUROBI_LIBRARIES "${GUROBI_CXX_LIBRARY};${GUROBI_LIBRARY}")
 
@@ -27,7 +27,7 @@ add_library(qpp MODULE qpp.cpp)
 
 
 #~ target_link_libraries(solveLP ${PYTHON_LIBRARIES})
-target_link_libraries(qpp ${PYTHON_LIBRARIES} ${GUROBI_LIBRARIES} ${Boost_LIBRARIES} )#${glpk_LIBRARIES})
+target_link_libraries(qpp ${PYTHON_LIBRARIES} ${GUROBI_LIBRARIES} ${Boost_LIBRARIES} ${glpk_LIBRARIES})
 target_include_directories(qpp PRIVATE ${PYTHON_INCLUDE_DIRS})
 
 
