@@ -12,7 +12,7 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR})
 find_package(PythonLibs 3.6 REQUIRED)
 find_package(Boost COMPONENTS python REQUIRED)
 find_package(GUROBI REQUIRED)
-#find_package(glpk REQUIRED)
+find_package(glpk REQUIRED)
 
 set(CMAKE_SHARED_MODULE_PREFIX "")
 

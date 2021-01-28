@@ -38,6 +38,12 @@ void massadd (list& l, vector<double>& v)
         v.push_back(extract<double>(l[i]));
 }
 
+void massadd_i (list& l, vector<int>& v)
+{
+    for (int i = 0; i < len(l); i++)
+        v.push_back(extract<int>(l[i]));
+}
+
 void massadd2 (list& l, vector< vector<double> >& v)
 {
     for (int i = 0; i < len(l); i++)
@@ -161,7 +167,7 @@ resultData solveglpk (list& c_, list& A_, list& b_, list& E_, list& e_)
     return result;
 }
 
-resultData solveQP (list& C_, list& c_, list& A_, list& b_, list& E_, list& e_)
+resultData solveQP (list& C_, list& c_, list& A_, list& b_, list& E_, list& e_)//, list& numsurf_)
 {
     resultData result;
     // python::list to std::vector
@@ -184,6 +190,8 @@ resultData solveQP (list& C_, list& c_, list& A_, list& b_, list& E_, list& e_)
     vector<double> e;
     massadd(e_, e);
 
+    // vector<int> numsurf;
+    // massadd_i(numsurf_, numsurf);
 
     try
     {
@@ -267,6 +275,22 @@ resultData solveQP (list& C_, list& c_, list& A_, list& b_, list& E_, list& e_)
             for (int j = 0; j < C[i].size(); j++)
             if (C[i][j] != 0)
                 obj += C[i][j]*x[i]*x[j];
+        // GRBQuadExpr obj = 0;
+        // int prev_index = 0;
+        // for (int i = 1; i < numsurf.size(); i++)
+        // {
+        //     int index = prev_index;
+        //     if (numsurf[i] > 1)
+        //         for (int j = 0 ; j < numsurf[i]; j ++)
+        //           index += 2;
+        //     index += 4;
+        //     GRBQuadExpr x = (c[prev_index]-c[index])*(c[prev_index]-c[index]);
+        //     GRBQuadExpr y = (c[prev_index+1]-c[index+1])*(c[prev_index+1]-c[index+1]);
+        //     GRBQuadExpr z = (c[prev_index+2]-c[index+2])*(c[prev_index+2]-c[index+2]);
+        //     obj += (x+y+z)/(numsurf.size()-1);
+        //     prev_index = index;
+        // }
+
         model.setObjective(obj,GRB_MINIMIZE);
         model.optimize();
 
@@ -284,7 +308,7 @@ resultData solveQP (list& C_, list& c_, list& A_, list& b_, list& E_, list& e_)
             for (int i = 0; i < c.size(); i++)
                 r.append(cVars[i].get(GRB_DoubleAttr_X));
             cost = model.get(GRB_DoubleAttr_ObjVal);
-            cout << cost << endl;
+            // cout << cost << endl;
             result.cost = cost;
         }
         else
@@ -433,10 +457,6 @@ resultData solveLP_mindist (list& c_, list& A_, list& b_, list& E_, list& e_, li
         }
         result.x = r;
 
-        if (model.get(GRB_IntAttr_IsMIP) == 0) {
-            throw GRBException("Model is not a MIP");
-        }
-
         return result;
 
     } catch(GRBException e){
@@ -566,7 +586,7 @@ resultData solveLP (list& c_, list& A_, list& b_, list& E_, list& e_)
             for (int i = 0; i < c.size(); i++)
                 r.append(cVars[i].get(GRB_DoubleAttr_X));
             cost = model.get(GRB_DoubleAttr_ObjVal);
-            cout << cost << endl;
+            // cout << cost << endl;
             result.cost = cost;
         }
         else
@@ -612,8 +632,10 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_)
         const clock_t begin_time = clock();
         GRBEnv env = GRBEnv();
         GRBModel model = GRBModel(env);
-        model.getEnv().set(GRB_StringParam_LogFile, "");
+        model.getEnv().set(GRB_StringParam_LogFile, "MIP");
         model.getEnv().set(GRB_IntParam_OutputFlag, 0);
+        // model.getEnv().set(GRB_IntParam_OutputFlag, 1);
+        // model.set(GRB_IntParam_Presolve, 0);
 
         GRBVar cVars[c.size()];
 
@@ -621,7 +643,7 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_)
         for (int i = 0 ; i < c.size(); i++)
         {
             if (c[i] > 0)    // alpha
-                cVars[i] = model.addVar(0, 1, 1, GRB_BINARY, "slack");
+                cVars[i] = model.addVar(0, 1, 0, GRB_BINARY, "slack");
             else            // real variables
                 cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, "x");
         }
@@ -758,7 +780,7 @@ resultData solveMIP (list& c_, list& A_, list& b_, list& E_, list& e_)
 
 }
 
-resultData solveMIP_QP (list& C_, list& c_, list& A_, list& b_, list& E_, list& e_)
+resultData solveMIP_QP (list& C_, list& c_, list& A_, list& b_, list& E_, list& e_, list& numsurf_)
 {
     resultData result;
 
@@ -781,14 +803,19 @@ resultData solveMIP_QP (list& C_, list& c_, list& A_, list& b_, list& E_, list& 
     vector<double> e;
     massadd(e_, e);
 
+    vector<int> numsurf;
+    massadd_i(numsurf_, numsurf);
+
 
     try
     {
         const clock_t begin_time = clock();
         GRBEnv env = GRBEnv();
         GRBModel model = GRBModel(env);
-        model.getEnv().set(GRB_StringParam_LogFile, "");
+        model.getEnv().set(GRB_StringParam_LogFile, "MIP_QP");
         model.getEnv().set(GRB_IntParam_OutputFlag, 0);
+        // model.getEnv().set(GRB_IntParam_OutputFlag, 1);
+        // model.set(GRB_IntParam_Presolve, 0);
 
         GRBVar cVars[c.size()];
 
@@ -796,7 +823,7 @@ resultData solveMIP_QP (list& C_, list& c_, list& A_, list& b_, list& E_, list& 
         for (int i = 0 ; i < c.size(); i++)
         {
             if (c[i] > 0)    // alpha
-                cVars[i] = model.addVar(0, 1, 1, GRB_BINARY, "slack");
+                cVars[i] = model.addVar(0, 1, 0, GRB_BINARY, "slack");
             else            // real variables
                 cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, "x");
         }
@@ -896,14 +923,29 @@ resultData solveMIP_QP (list& C_, list& c_, list& A_, list& b_, list& E_, list& 
         model.update();
 
 
-        // objective function : QUAD
+        // // objective function : QUAD
+        // GRBQuadExpr obj = 0;
+        // for (int j = 0; j < c.size(); j++)
+        //     obj += c[j]*x[j];
+        // for (int i = 0; i < C.size(); i++)
+        //     for (int j = 0; j < C[i].size(); j++)
+        //     if (C[i][j] != 0)
+        //         obj += C[i][j]*x[i]*x[j];
         GRBQuadExpr obj = 0;
-        for (int j = 0; j < c.size(); j++)
-            obj += c[j]*x[j];
-        for (int i = 0; i < C.size(); i++)
-            for (int j = 0; j < C[i].size(); j++)
-            if (C[i][j] != 0)
-                obj += C[i][j]*x[i]*x[j];
+        int prev_index = 0;
+        for (int i = 1; i < numsurf.size(); i++)
+        {
+            int index = prev_index;
+            if (numsurf[i] > 1)
+                for (int j = 0 ; j < numsurf[i]; j ++)
+                  index += 2;
+            index += 4;
+            GRBQuadExpr x = (c[prev_index]-c[index])*(c[prev_index]-c[index]);
+            GRBQuadExpr y = (c[prev_index+1]-c[index+1])*(c[prev_index+1]-c[index+1]);
+            GRBQuadExpr z = (c[prev_index+2]-c[index+2])*(c[prev_index+2]-c[index+2]);
+            obj += (x+y+z)/(numsurf.size()-1);
+            prev_index = index;
+        }
         model.setObjective(obj,GRB_MINIMIZE);
         model.optimize();
 
@@ -974,8 +1016,10 @@ resultData solveMIP_mindist (list& c_, list& A_, list& b_, list& E_, list& e_, l
         const clock_t begin_time = clock();
         GRBEnv env = GRBEnv();
         GRBModel model = GRBModel(env);
-        model.getEnv().set(GRB_StringParam_LogFile, "");
+        model.getEnv().set(GRB_StringParam_LogFile, "MIP_mindist");
         model.getEnv().set(GRB_IntParam_OutputFlag, 0);
+        // model.getEnv().set(GRB_IntParam_OutputFlag, 1);
+        // model.set(GRB_IntParam_Presolve, 0);
 
         GRBVar cVars[c.size()];
 
@@ -983,7 +1027,7 @@ resultData solveMIP_mindist (list& c_, list& A_, list& b_, list& E_, list& e_, l
         for (int i = 0 ; i < c.size(); i++)
         {
             if (c[i] > 0)    // alpha
-                cVars[i] = model.addVar(0, 1, 1, GRB_BINARY, "slack");
+                cVars[i] = model.addVar(0, 1, 0, GRB_BINARY, "slack");
             else            // real variables
                 cVars[i] = model.addVar(-GRB_INFINITY, GRB_INFINITY, 0, GRB_CONTINUOUS, "x");
         }
